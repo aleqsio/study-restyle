@@ -22,6 +22,7 @@ Everything is modelled in Blender from simple boxes, cylinders and spheres, to s
 | `build_room.py` | The room as it is today: walls, window, door, radiator, wardrobe, desk, chair. Writes `room.blend` and two preview renders. |
 | `catalog.py` | Low-poly models for every option (run by `restyle_export.py`). |
 | `restyle_export.py` | Adds the options, turns every piece into a template the viewer clones, and exports `viewer/room.json` (a gzipped GLB in a JSON wrapper). |
+| `render_og.py` | Renders the social preview card `viewer/og.png`. |
 | `viewer/index.html` | The three.js viewer. No build step. |
 
 Rebuild the model (Blender 5.x):
