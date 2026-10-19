@@ -2,9 +2,8 @@
 
 A 3D planner for a 276 × 334 cm study with a 2.7 m ceiling.
 
-- **Room** tab: style, paint and wall finish, ceiling light, window/radiator/door add-ons, presets and desk arrangements.
-- **Object** tab: click any piece to change its version and add-ons, swap it for something similar, duplicate, move or remove it. A gizmo slides and turns it.
-- **Add** tab: a gallery of about 80 pieces to drag onto the floor or a wall.
+- The **inspector** at the top of the panel shows room settings (style, paint and wall finish, ceiling light, window/radiator/door, presets, desk arrangements). Click a piece and it swaps to that piece's settings: its version and add-ons, swaps, duplicate, remove. A gizmo slides and turns it.
+- Below it, always visible: the list of pieces **in the room**, and a **gallery** of about 80 pieces to drag onto the floor or a wall.
 
 Ctrl/Cmd+Z undoes. The panel keeps a rough cost estimate in Polish złoty.
 

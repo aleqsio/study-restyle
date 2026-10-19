@@ -91,13 +91,14 @@ h1 { font: 600 22px/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
 .share { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .share span { font-size: 12px; color: var(--muted); }
 .share input { flex: 1 1 100%; min-width: 0; font: 400 11.5px var(--font-mono); color: var(--ink); background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
-.tabs { display: flex; gap: 2px; padding: 8px max(20px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px)); border-bottom: 1px solid var(--line); }
-.tabs button {
+.inspector { flex: 0 1 auto; max-height: 56%; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--chip) 45%, var(--panel)); }
+.library { flex: 1 1 0; }
+.insp-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.insp-head h2 { font: 600 15px var(--font-display); text-transform: uppercase; letter-spacing: .1em; margin: 0; }
+.insp-head span { font-size: 12px; color: var(--muted); }
   font: 600 13px var(--font-display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
   background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px 9px; cursor: pointer;
 }
-.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
-.tabs button .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-left: 6px; vertical-align: middle; }
 .panel { overflow-y: auto; padding-block: 14px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); display: grid; align-content: start; gap: 20px; flex: 1; min-height: 0; }
 
 .block { display: grid; gap: 9px; }
@@ -163,6 +164,7 @@ h1 { font: 600 22px/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 58vh auto; height: auto; min-height: 100%; }
   .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
   .panel { overflow: visible; }
+  .inspector { max-height: none; }
   .hint { display: none; }
 }
 </style>
@@ -211,14 +213,12 @@ h1 { font: 600 22px/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
         <input id="share-url" readonly hidden aria-label="Link to this setup">
       </div>
     </div>
-    <div class="tabs" role="tablist" aria-label="Panels">
-      <button role="tab" id="t-room" aria-selected="true" aria-controls="tab-room">Room</button>
-      <button role="tab" id="t-object" aria-selected="false" aria-controls="tab-object">Object</button>
-      <button role="tab" id="t-add" aria-selected="false" aria-controls="tab-add">Add</button>
+    <section class="panel inspector" id="inspector" aria-label="Settings"></section>
+    <div class="panel library" id="library">
+      <section class="block" id="objects" aria-label="In the room"></section>
+      <section class="block" id="gallery" aria-label="Add pieces"></section>
+      <p class="foot">Everything is modelled cheaply from simple shapes, to scale. Prices are rough Polish street prices.</p>
     </div>
-    <div class="panel" id="tab-room" role="tabpanel" aria-labelledby="t-room"></div>
-    <div class="panel" id="tab-object" role="tabpanel" aria-labelledby="t-object" hidden></div>
-    <div class="panel" id="tab-add" role="tabpanel" aria-labelledby="t-add" hidden></div>
   </aside>
 </div>
 
@@ -1023,14 +1023,9 @@ function update(animate = true) {
 }
 
 // ================================================================ panels
-const tabs = { room: document.getElementById("tab-room"), object: document.getElementById("tab-object"), add: document.getElementById("tab-add") };
-let activeTab = "room";
-function showTab(t) {
-  activeTab = t;
-  for (const [k, el] of Object.entries(tabs)) el.hidden = k !== t;
-  for (const k of Object.keys(tabs)) document.getElementById("t-" + k).setAttribute("aria-selected", String(k === t));
-}
-for (const k of Object.keys(tabs)) document.getElementById("t-" + k).addEventListener("click", () => showTab(k));
+// The inspector shows room settings, or the selected piece's settings; the room list and
+// the gallery below it are always there.
+const inspectorEl = document.getElementById("inspector"), objectsEl = document.getElementById("objects"), galleryEl = document.getElementById("gallery");
 const thumbs = {}; // template id -> data URL
 const img = (p, cls = "") => (thumbs[p] ? `<img src="${thumbs[p]}" alt="" class="${cls}" data-thumb="${p}">` : `<span class="ph ${cls}" data-thumb="${p}"></span>`);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -1045,9 +1040,9 @@ function totals() {
 const chipRow = (group, entries, cur, priced = true) =>
   `<div class="chips" role="group">${entries.map(([k, v]) => `<button class="chip" data-${group}="${k}" aria-pressed="${k === cur}">${esc(v.name ?? v[0])}${priced && (v.hi ?? v[2]) ? `<small>${fmt(v.lo ?? v[1])}+</small>` : ""}</button>`).join("")}</div>`;
 
-function renderRoomTab() {
-  const el = tabs.room;
-  el.innerHTML = `
+function renderRoomSettings() {
+  inspectorEl.innerHTML = `
+    <div class="insp-head"><h2>Room</h2><span>click a piece to edit it instead</span></div>
     <section class="block"><div class="block-head"><h2>Presets</h2><span>replace everything</span></div>
       <div class="chips">${Object.entries(PRESETS).map(([k, v]) => `<button class="chip" data-preset="${k}" title="${esc(v.note)}">${v.name}</button>`).join("")}</div>
       <p class="note">Each preset places a set of objects. Click any object afterwards to change, move or remove it.</p></section>
@@ -1062,22 +1057,18 @@ function renderRoomTab() {
     <section class="block"><div class="block-head"><h2>Ceiling light</h2></div>${chipRow("light", Object.entries(LIGHTS), state.light)}</section>
     <section class="block"><div class="block-head"><h2>Window, radiator, door</h2><span>${[...state.room].length} on</span></div>
       <div class="xlist">${Object.entries(ROOM_ADDONS).map(([k, v]) => `<label class="xrow"><input type="checkbox" data-room="${k}" ${state.room.has(k) ? "checked" : ""}>
-        <span class="name">${esc(v.name)}</span><span class="price">${fmt(v.lo)}–${fmt(v.hi)}</span></label>`).join("")}</div></section>
-    <section class="block"><div class="block-head"><h2>In the room</h2><span>${state.objects.length} pieces</span></div>
-      ${state.objects.length ? `<div class="objlist">${state.objects.map((o) => { const [lo, hi] = priceOf(o); return `<button class="objrow" data-select="${o.id}" aria-current="${selected && selected.id === o.id}">
-        ${img(o.p)}<span class="name">${esc(infoOf(o.p).name)}</span><span class="price">${hi ? range(lo, hi) : "owned"}</span></button>`; }).join("")}</div>`
-      : `<p class="empty">The room is empty. Open Add and drag pieces in, or pick a preset.</p>`}</section>
-    <p class="foot">Everything is modelled cheaply from simple shapes, to scale. Prices are rough Polish street prices.</p>`;
+        <span class="name">${esc(v.name)}</span><span class="price">${fmt(v.lo)}–${fmt(v.hi)}</span></label>`).join("")}</div></section>`;
 }
-function renderObjectTab() {
-  const el = tabs.object;
-  const o = selected && state.objects.find((x) => x.id === selected.id);
-  if (!o) {
-    el.innerHTML = `<p class="empty">Click a piece in the room to change it here: its version, add-ons, position, or swap it for something else. To add a new piece, open Add.</p>`;
-    return;
-  }
+function renderObjectList() {
+  objectsEl.innerHTML = `<div class="block-head"><h2>In the room</h2><span>${state.objects.length} pieces</span></div>
+    ${state.objects.length ? `<div class="objlist">${state.objects.map((o) => { const [lo, hi] = priceOf(o); return `<button class="objrow" data-select="${o.id}" aria-current="${selected && selected.id === o.id}">
+      ${img(o.p)}<span class="name">${esc(infoOf(o.p).name)}</span><span class="price">${hi ? range(lo, hi) : "owned"}</span></button>`; }).join("")}</div>`
+    : `<p class="empty">The room is empty. Drag pieces in from below, or pick a preset.</p>`}`;
+}
+function renderObjectSettings(o) {
+  const el = inspectorEl;
   const info = infoOf(o.p), f = FAMILIES[o.p], [lo, hi] = priceOf(o), t = TPL[o.p];
-  let html = `<div class="obj-head">${img(o.p)}<div><h2>${esc(info.name)}</h2><p>${esc(info.cat)} · ${t.mount === "wall" ? "on a wall" : "on the floor"}</p><p><strong>${hi ? range(lo, hi) : "already yours"}</strong></p></div></div>`;
+  let html = `<div class="insp-head"><button class="btn" data-act="back">← Room settings</button><span>${esc(info.cat)}</span></div><div class="obj-head">${img(o.p)}<div><h2>${esc(info.name)}</h2><p>${esc(info.cat)} · ${t.mount === "wall" ? "on a wall" : "on the floor"}</p><p><strong>${hi ? range(lo, hi) : "already yours"}</strong></p></div></div>`;
   if (f) {
     for (const op of f.options) {
       if (op.when && !op.when(o.o)) continue;
@@ -1099,9 +1090,9 @@ function syncPanels() {
   const [lo, hi] = totals();
   document.getElementById("total").textContent = range(lo, hi);
   document.querySelectorAll("#scenes button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scene === state.scene)));
-  renderRoomTab();
-  renderObjectTab();
-  document.getElementById("t-object").innerHTML = selected ? `Object<span class="dot"></span>` : "Object";
+  const o = selected && state.objects.find((x) => x.id === selected.id);
+  if (o) renderObjectSettings(o); else renderRoomSettings();
+  renderObjectList();
 }
 // One delegated handler for both panels
 function onPanelClick(e) {
@@ -1117,6 +1108,7 @@ function onPanelClick(e) {
   if (d.light) { state.light = d.light; return update(); }
   if (d.room && b.tagName === "INPUT") { b.checked ? state.room.add(d.room) : state.room.delete(d.room); return update(); }
   if (d.select) { const x = state.objects.find((q) => q.id === Number(d.select)); if (x) select(x, true); return; }
+  if (d.act === "back") return select(null);
   if (!o) return;
   for (const [k, v] of Object.entries(d)) {
     if (!k.startsWith("opt")) continue;
@@ -1133,13 +1125,14 @@ function onPanelClick(e) {
   if (d.act === "dup") return duplicate(o);
   if (d.act === "del") return removeObj(o);
 }
-tabs.room.addEventListener("click", onPanelClick);
-tabs.object.addEventListener("click", onPanelClick);
+inspectorEl.addEventListener("click", onPanelClick);
+objectsEl.addEventListener("click", onPanelClick);
 
 // ================================================================ gallery
 function buildGallery() {
   const items = PROTO_IDS.filter((p) => TPL[p] && (FAMILIES[p] || SINGLES[p][4] !== false));
-  tabs.add.innerHTML = `<p class="note">Drag a piece onto the floor or a wall. Click one to drop it into the room, then move it with the arrows.</p>` +
+  galleryEl.innerHTML = `<div class="block-head"><h2>Add pieces</h2><span>drag onto the floor or a wall</span></div>
+    <p class="note">Or click one to drop it into the room, then move it with the arrows.</p>` +
     CATEGORIES.map((cat) => {
       const list = items.filter((p) => infoOf(p).cat === cat);
       if (!list.length) return "";
@@ -1150,15 +1143,15 @@ function buildGallery() {
       }).join("")}</div></section>`;
     }).join("");
 }
-tabs.add.addEventListener("click", (e) => {
+galleryEl.addEventListener("click", (e) => {
   const b = e.target.closest("[data-add]");
   if (b) addObject(b.dataset.add, null);
 });
-tabs.add.addEventListener("keydown", (e) => {
+galleryEl.addEventListener("keydown", (e) => {
   const b = e.target.closest("[data-add]");
   if (b && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); addObject(b.dataset.add, null); }
 });
-tabs.add.addEventListener("dragstart", (e) => {
+galleryEl.addEventListener("dragstart", (e) => {
   const b = e.target.closest("[data-add]");
   if (!b) return;
   e.dataTransfer.setData("text/plain", b.dataset.add);
@@ -1291,7 +1284,7 @@ function select(o, openTab = false) {
     moveGizmo.showZ = !wall || Math.abs(n[0]) > 0.5;
     if (wall) turnGizmo.detach(); else turnGizmo.attach(node);
     pieceBar.querySelectorAll("[data-rot]").forEach((b) => { b.hidden = wall; });
-    if (openTab) showTab("object");
+    if (openTab) inspectorEl.scrollTop = 0;
   } else { moveGizmo.detach(); turnGizmo.detach(); }
   syncPanels();
 }
