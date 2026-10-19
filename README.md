@@ -1,6 +1,6 @@
 # Study restyle
 
-A 3D planner for a 276 × 334 cm study with a 2.7 m ceiling. Drag the room around, pick a style and a desk layout, choose a version of each piece (lights, desk and its length, chair, wardrobe, window, rug, art, shelves, the door corner, the wall opposite the desk, plants, dividers), and toggle about 50 add-ons. The panel keeps a rough cost estimate in Polish złoty.
+A 3D planner for a 276 × 334 cm study with a 2.7 m ceiling. Drag the room around, pick a style and a desk layout, choose a version of each piece (lights, desk and its length, chair, wardrobe, window, rug, art, shelves, the door corner, the wall opposite the desk, plants, dividers), and toggle about 50 add-ons. Click a piece of furniture to drag it around or rotate it. The panel keeps a rough cost estimate in Polish złoty.
 
 **Live:** https://aleqsio.github.io/study-restyle/
 

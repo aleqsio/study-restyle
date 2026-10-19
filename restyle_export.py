@@ -672,15 +672,33 @@ def named(*prefixes, exact=()):
 
 group("grp_desk", (0.35, 0.80), named(
     "Desk ", "Monitor ", "Laptop ", "Lamp ", "Bulb ", "Orchid ", "Keyboard", "Mouse", "PC ", "Cable Tray",
-    "Mushroom ", "Light Desk", "Light Bulb", "Light Mushroom", exact=("Glass",)))
-group("grp_chair", (1.05, 0.75), named("Chairx ", exact=("MARKUS Chair", "Aluminium Group Chair", "Kneeling Chair", "Cantilever Chair")))
+    "Mushroom ", "Light Desk", "Light Bulb", "Light Mushroom", exact=("Glass",)), {"piece": "desk"})
+group("grp_chair", (1.05, 0.75), named("Chairx ", exact=("MARKUS Chair", "Aluminium Group Chair", "Kneeling Chair", "Cantilever Chair")),
+      {"piece": "chair"})
 group("grp_deskwall", (0.0, 0.80), named(
     "Shelf", "Book Low", "Book Mid", "Vase Low", "Vase Top", "Ceramic Ball", "Record", "Poster A ", "Wallfeat "))
-group("grp_console", (W - 0.235, 0.95), list(console_coll.objects), {"opt": "opp:console"})
-group("grp_long", (W - 0.235, 1.025), list(long_coll.objects), {"opt": "opp:long"})
-group("grp_bench", (W - 0.31, 0.90), list(bench_coll.objects), {"opt": "opp:bench"})
+group("grp_console", (W - 0.235, 0.95), list(console_coll.objects), {"opt": "opp:console", "piece": "opp:console"})
+group("grp_long", (W - 0.235, 1.025), list(long_coll.objects), {"opt": "opp:long", "piece": "opp:long"})
+group("grp_bench", (W - 0.31, 0.90), list(bench_coll.objects), {"opt": "opp:bench", "piece": "opp:bench"})
 for name, pivot in OPP_GROUPS.items():
-    group("grp_" + name, pivot, list(bpy.data.collections["opp:" + name].objects), {"opt": "opp:" + name})
+    group("grp_" + name, pivot, list(bpy.data.collections["opp:" + name].objects), {"opt": "opp:" + name, "piece": "opp:" + name})
+
+# ---------------------------------------------------------------- movable pieces
+# Free-standing furniture the viewer lets you drag and rotate: each variant becomes one
+# piece, pivoting on the middle of its footprint. Wall-mounted things stay put.
+DRAG_SLOTS = ("corner:", "plant:", "freed:", "rug:", "between:")
+DRAG_X = {"x:pouf", "x:ottoman", "x:globe", "x:humidifier", "x:runner", "x:laddershelf", "x:bench"}
+for coll in list(bpy.data.collections):
+    tag = coll.name
+    if not (tag.startswith(DRAG_SLOTS) or tag in DRAG_X) or tag in ("between:paint", "between:pinboard"):
+        continue
+    tops = [o for o in coll.objects if o.parent is None]
+    pts = [d.matrix_world @ Vector(c) for o in tops for d in (o, *o.children_recursive) if d.type == "MESH" for c in d.bound_box]
+    if not pts:
+        continue
+    centre = ((min(p.x for p in pts) + max(p.x for p in pts)) / 2, (min(p.y for p in pts) + max(p.y for p in pts)) / 2)
+    group("piece_" + tag.replace(":", "_"), centre, tops, {"piece": tag})
+group("piece_wardrobe", (0.30, 2.22), named("Wardrobe ", "Reed ", "Reeded Backer"), {"piece": "wardrobe"})
 
 
 # ---------------------------------------------------------------- tag walls for the cut-away viewer

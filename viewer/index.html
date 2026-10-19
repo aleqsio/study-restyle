@@ -59,6 +59,17 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font-body); 
 }
 .compare.on { background: var(--mustard); border-color: var(--mustard); color: #1d150c; }
 button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.piecebar {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 24px);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px;
+}
+.piecebar b { font: 600 13px var(--font-display); padding: 0 6px; }
+.piecebar button {
+  font: 500 12.5px/1 var(--font-body); color: var(--ink); background: var(--chip); border: 1px solid var(--line);
+  padding: 7px 10px; border-radius: 8px; cursor: pointer;
+}
+.piecebar button.done { background: var(--ink); color: var(--panel); border-color: var(--ink); }
 .hint {
   position: absolute; bottom: 12px; left: max(12px, env(safe-area-inset-left, 0px));
   font: 12px var(--font-body); color: var(--muted); background: color-mix(in srgb, var(--panel) 85%, transparent);
@@ -175,7 +186,15 @@ details.xgroup summary b { font-weight: 500; color: var(--accent); margin-left: 
       </div>
       <button class="compare" id="compare">Hold to see the room today</button>
     </div>
-    <div class="hint" id="hint">Drag to orbit · right-drag or two fingers to pan · scroll to zoom</div>
+    <div class="hint" id="hint">Drag to orbit · scroll to zoom · drag furniture to move it, then rotate with Q/E</div>
+    <div class="piecebar" id="piecebar" hidden role="toolbar" aria-label="Selected furniture">
+      <b id="piece-name"></b>
+      <button data-rot="-15" title="Rotate left (Q)">⟲ 15°</button>
+      <button data-rot="15" title="Rotate right (E)">⟳ 15°</button>
+      <button data-rot="90">⟳ 90°</button>
+      <button id="piece-reset">Put back</button>
+      <button id="piece-done" class="done">Done</button>
+    </div>
   </div>
 
   <aside class="rail">
@@ -185,6 +204,7 @@ details.xgroup summary b { font-weight: 500; color: var(--accent); margin-left: 
       <div class="total"><span>Estimated spend</span><strong id="total">0 zł</strong></div>
       <div class="share">
         <button id="copy-link">Copy link to this setup</button>
+        <button id="reset-moves" hidden>Put all moved furniture back</button>
         <span id="copy-status" role="status"></span>
         <input id="share-url" readonly hidden aria-label="Link to this setup">
       </div>
@@ -458,7 +478,7 @@ const SLOTS = [
     nook: { name: "Reading nook", lo: 4000, hi: 6000, depth: 0.75, note: "A 366 armchair facing the room, a floor lamp and a small book shelf.", fit: freedFit },
     plants: { name: "Plant corner", lo: 600, hi: 1500, depth: 0.45, note: "Fiddle-leaf fig, snake plant and a fern on a stand.", fit: freedFit },
   } },
-  { id: "window", name: "Window", section: "Furniture", variants: {
+  { id: "window", name: "Window", section: "Furniture", onlyIf: () => false, variants: {
     today: { name: "Roller blind", lo: 0, hi: 0, note: "Your roller blind in its black cassette." },
     linen: { name: "Linen curtains", lo: 800, hi: 1800, note: "Floor-to-ceiling linen on a ceiling track.", fit: notB("The desk is against the window in this layout.") },
     venetian: { name: "Wood Venetian", lo: 600, hi: 1500, note: "Wooden Venetian blind inside the reveal, slats open. (21)" },
@@ -586,18 +606,24 @@ const XMATS = { darkfloor: { "Oak Floor": wood("#7a4f2a", "#4a2e14", { planks: 2
 const allSlots = (v) => Object.fromEntries(SLOTS.map((s) => [s.id, Object.keys(s.variants)[0]]));
 const PRESETS = {
   today: { slots: allSlots(), extras: [] },
-  rec: { slots: { ...allSlots(), light: "globe", desklamp: "mushroom", desk: "walnut", pc: "caddy", shelf: "string", window: "linen",
+  rec: { slots: { ...allSlots(), light: "globe", desklamp: "mushroom", desk: "walnut", pc: "caddy", shelf: "string",
     rug: "geo", art: "posters", corner: "reading", opp: "console", plant: "rubber" }, extras: ["bias", "throw", "acc"] },
   bold: { slots: { ...allSlots(), paint: "doorolive", wf: "slats", light: "lantern", desklamp: "angle", desk: "walnut", desklen: "l160", chair: "cantilever", pc: "mount",
-    shelf: "rails", wardrobe: "bookcase", window: "venetian", rug: "kilim", art: "gallery", corner: "rocker", opp: "hifi", plant: "hanging" },
+    shelf: "rails", wardrobe: "bookcase", rug: "kilim", art: "gallery", corner: "rocker", opp: "hifi", plant: "hanging" },
     extras: ["sconces", "uplight", "sheepskin", "monarm", "pad", "felt", "pelmet"] },
   maker: { slots: { ...allSlots(), wf: "cork", light: "track", desklamp: "angle", desk: "l", chair: "kneel", pc: "mount", shelf: "pegboard",
-    window: "motor", rug: "none", art: "film", corner: "bookcase", opp: "bench", plant: "ladder" },
+    rug: "none", art: "film", corner: "bookcase", opp: "bench", plant: "ladder" },
     extras: ["rack", "mic", "screen2", "matrix", "co2", "eink", "monarm", "spine", "growlight", "felt"] },
 };
 const clone = (p) => ({ slots: { ...p.slots }, extras: new Set(p.extras) });
-const TODAY = { style: "green", layout: "A", ...clone(PRESETS.today) };
-const state = { style: "green", layout: "A", scene: "everyday", view: "doll", ...clone(PRESETS.rec) };
+const TODAY = { style: "green", layout: "A", moves: {}, ...clone(PRESETS.today) };
+// moves: furniture you dragged, keyed by a short hash of the piece -> [x cm, y cm, degrees]
+const state = { style: "green", layout: "A", scene: "everyday", view: "doll", moves: {}, ...clone(PRESETS.rec) };
+function pieceHash(key) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return (h >>> 0).toString(36);
+}
 
 // ---------------------------------------------------------------- setup in the URL
 // The whole setup packs into one plain token (letters, digits, "-") so it survives
@@ -618,10 +644,12 @@ function encodeSetup(s) {
   for (const id of SLOT_CODE_ORDER) t += ch(Object.keys(SLOT[id].variants).indexOf(s.slots[id]));
   let bits = 0n;
   X_KEYS.forEach((k, i) => { if (s.extras.has(k)) bits |= 1n << BigInt(i); });
-  return t + "-" + bits.toString(36);
+  const n = (v) => (v < 0 ? "_" : "") + Math.abs(Math.round(v)).toString(36);
+  const moves = Object.entries(s.moves || {}).filter(([, m]) => m.some((v) => Math.round(v))).map(([h, m]) => `~${h}.${m.map(n).join(".")}`);
+  return t + "-" + bits.toString(36) + moves.join("");
 }
 function decodeSetup(tok) {
-  const m = /^r1([0-9a-z]+)-([0-9a-z]*)$/.exec(tok || "");
+  const m = /^r1([0-9a-z]+)-([0-9a-z]*)((?:~[0-9a-z]+(?:\.[_0-9a-z]+){3})*)$/.exec(tok || "");
   if (!m) return null;
   const c = m[1], at = (i, keys) => keys[parseInt(c[i], 36)];
   const out = { slots: { ...PRESETS.today.slots }, extras: new Set() };
@@ -633,6 +661,12 @@ function decodeSetup(tok) {
   let bits = 0n;
   for (const d of m[2]) bits = bits * 36n + BigInt(parseInt(d, 36));
   X_KEYS.forEach((k, i) => { if ((bits >> BigInt(i)) & 1n) out.extras.add(k); });
+  const num = (v) => (v[0] === "_" ? -1 : 1) * parseInt(v.replace("_", ""), 36);
+  out.moves = {};
+  for (const e of (m[3] || "").split("~").filter(Boolean)) {
+    const [h, ...vals] = e.split(".");
+    out.moves[h] = vals.map(num);
+  }
   return out;
 }
 // Older links stored the 130 and 160 cm desks as desk tops; move them to the length row
@@ -640,6 +674,7 @@ function migrate(saved) {
   if (!saved) return saved;
   if (saved.slots.desk === "wide") { saved.slots.desk = "walnut"; saved.slots.desklen = "l160"; }
   if (saved.slots.desk === "short") { saved.slots.desk = "walnut"; saved.slots.desklen = "l130"; }
+  saved.slots.window = "today"; // curtain and blind alternatives were retired
   return saved;
 }
 function readSaved() {
@@ -825,6 +860,10 @@ function syncPanel() {
     b.setAttribute("aria-pressed", String(same));
   });
   document.querySelectorAll("#scenes button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scene === s.scene)));
+  const moved = Object.keys(state.moves || {}).length;
+  const rm = document.getElementById("reset-moves");
+  rm.hidden = !moved;
+  rm.textContent = `Put back ${moved} moved piece${moved === 1 ? "" : "s"}`;
   persist();
 }
 
@@ -1005,6 +1044,7 @@ const SCENES = {
   focus: { ceiling: 0xf2f4ff, hemi: 0xf2f4ff, hemiI: 0.95, mul: 1.25 },
 };
 
+const pieces = [];
 const tagged = [], wallNodes = [], sideTables = [], module3Nodes = [], chairBacks = [], deskParts = [];
 // Desk tops and frames are modelled 140 cm long (y 0.10-1.50); the viewer stretches them.
 const DESK_PARTS = [
@@ -1061,6 +1101,11 @@ loadModel().then((gltf) => {
     }
     if (CHAIR_BACKS.has(o.name.replace(/_/g, " "))) chairBacks.push(o);
     if (BASE[o.name]) groups[o.name] = o;
+    if (u.piece) {
+      u.pieceHash = pieceHash(u.piece);
+      u.base = { pos: o.position.clone(), rot: o.rotation.y };
+      pieces.push(o);
+    }
     if (u.light) {
       const l = makeLight(u.light);
       if (u.light === "ceiling") ceilingLight = l;
@@ -1089,7 +1134,7 @@ loadModel().then((gltf) => {
 });
 
 // Layout: animate each group to its target transform
-let layoutTween = null;
+let layoutTween = null, lastTargets = {};
 function layoutTargets(s) {
   const L = LAYOUTS[s.layout];
   const over = { ...L.groups };
@@ -1103,16 +1148,28 @@ function layoutTargets(s) {
   }
   return out;
 }
+// Put a piece at its base pose (from the layout, or where the model has it) plus any drag/rotate
+function placePiece(o, pos, rot, s = comparing ? TODAY : state) {
+  const m = (o.userData.pieceHash && (s.moves || {})[o.userData.pieceHash]) || [0, 0, 0];
+  o.position.set(pos.x + m[0] / 100, pos.y, pos.z - m[1] / 100);
+  o.rotation.y = rot + THREE.MathUtils.degToRad(m[2]);
+}
+function applyPieceMoves(s) {
+  for (const o of pieces) if (!BASE[o.name]) placePiece(o, o.userData.base.pos, o.userData.base.rot, s);
+}
 function applyLayout(s, animate) {
   const to = layoutTargets(s);
   if (!animate || reduceMotion) {
-    for (const [g, t] of Object.entries(to)) if (groups[g]) { groups[g].position.copy(t.pos); groups[g].rotation.y = t.rot; }
+    for (const [g, t] of Object.entries(to)) if (groups[g]) placePiece(groups[g], t.pos, t.rot, s);
+    lastTargets = to;
     layoutTween = null;
     return;
   }
-  const from = {};
-  for (const g of Object.keys(to)) if (groups[g]) from[g] = { pos: groups[g].position.clone(), rot: groups[g].rotation.y };
-  layoutTween = { from, to, t0: performance.now(), dur: 650 };
+  // Tween between base poses; placePiece re-adds the moves every frame
+  const start = {};
+  for (const g of Object.keys(to)) if (groups[g]) start[g] = (layoutTween && layoutTween.cur[g]) || lastTargets[g] || to[g];
+  lastTargets = to;
+  layoutTween = { from: start, to, t0: performance.now(), dur: 650, cur: start };
 }
 
 let comparing = false;
@@ -1150,6 +1207,9 @@ function update(animate = true) {
   for (const x of s.extras) if (XMATS[x] && !xFit(s, x)) Object.assign(mats, XMATS[x]);
   applyMaterials(mats);
   applyLayout(s, animate);
+  applyPieceMoves(s);
+  if (selected && !selected.userData.base) select(null);
+  if (selected) { let any = false; selected.traverseVisible((m) => { if (m.isMesh) any = true; }); if (!any || !visibleChain(selected)) select(null); }
   const sc = SCENES[s.scene];
   if (ceilingLight) {
     ceilingLight.color.set(sc.ceiling);
@@ -1210,7 +1270,7 @@ function setLookMode(on) {
   controls.minDistance = on ? 0.01 : 0.4; // the look pivot sits 5 cm ahead of the eye
   controls.minPolarAngle = on ? 0.15 : 0;
   controls.maxPolarAngle = on ? Math.PI - 0.15 : Math.PI * 0.49;
-  hintEl.textContent = on ? "Drag to look around · scroll to zoom" : "Drag to orbit · right-drag or two fingers to pan · scroll to zoom";
+  hintEl.textContent = on ? "Drag to look around · scroll to zoom · drag furniture to move it" : "Drag to orbit · scroll to zoom · drag furniture to move it, then rotate with Q/E";
 }
 // Orbiting around a point 5 cm in front of the eye is the same as turning the head
 function lookTarget(pos, target) {
@@ -1297,17 +1357,132 @@ renderer.setAnimationLoop((now) => {
   }
   if (layoutTween) {
     const t = Math.min(1, (now - layoutTween.t0) / layoutTween.dur), k = ease(t);
+    const cur = {};
     for (const [g, f] of Object.entries(layoutTween.from)) {
       const to = layoutTween.to[g];
-      groups[g].position.lerpVectors(f.pos, to.pos, k);
-      groups[g].rotation.y = f.rot + (to.rot - f.rot) * k;
+      cur[g] = { pos: f.pos.clone().lerp(to.pos, k), rot: f.rot + (to.rot - f.rot) * k };
+      placePiece(groups[g], cur[g].pos, cur[g].rot);
     }
+    layoutTween.cur = cur;
     if (t === 1) layoutTween = null;
   }
   controls.update();
   updateCutaway();
+  if (selected) updateSelBox();
   renderer.render(scene, camera);
 });
+// ---------------------------------------------------------------- moving furniture
+// Click a free-standing piece to select it, drag it across the floor, rotate it from the toolbar or with Q/E.
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+const pieceBar = document.getElementById("piecebar");
+const selBox = new THREE.Box3(), selHelper = new THREE.Box3Helper(selBox, 0xe0ad4a);
+selHelper.visible = false;
+scene.add(selHelper);
+var selected = null;
+let drag = null, downAt = null;
+function visibleChain(o) { for (let x = o; x; x = x.parent) if (!x.visible) return false; return true; }
+function pieceOf(o) { for (let x = o; x; x = x.parent) if (x.userData && x.userData.piece) return x; return null; }
+function pieceLabel(key) {
+  if (key === "desk") return "Desk";
+  if (key === "chair") return "Desk chair";
+  if (key === "wardrobe") return "Wardrobe";
+  const [slot, id] = key.split(":");
+  if (slot === "x") return XITEM[id] ? XITEM[id].name : id;
+  return SLOT[slot] ? SLOT[slot].variants[id].name : key;
+}
+function rayFrom(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+}
+function pick(e) {
+  rayFrom(e);
+  for (const h of raycaster.intersectObjects(scene.children, true)) {
+    if (!h.object.isMesh || !visibleChain(h.object)) continue;
+    const p = pieceOf(h.object);
+    return p ? { piece: p, point: h.point } : null; // the nearest visible thing wins, so walls block picks
+  }
+  return null;
+}
+function updateSelBox() {
+  selBox.makeEmpty();
+  selected.updateWorldMatrix(true, true);
+  selected.traverseVisible((m) => {
+    if (!m.isMesh) return;
+    if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+    selBox.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld));
+  });
+}
+function select(p) {
+  selected = p;
+  selHelper.visible = !!p;
+  pieceBar.hidden = !p;
+  if (p) document.getElementById("piece-name").textContent = pieceLabel(p.userData.piece);
+}
+function moveOf(p) { return state.moves[p.userData.pieceHash] || [0, 0, 0]; }
+function setMove(p, m) {
+  if (m.every((v) => Math.abs(v) < 0.5)) delete state.moves[p.userData.pieceHash];
+  else state.moves[p.userData.pieceHash] = m;
+  applyLayout(state, false);
+  applyPieceMoves(state);
+}
+canvas.addEventListener("pointerdown", (e) => {
+  if (e.button !== 0 || comparing) return;
+  downAt = { x: e.clientX, y: e.clientY };
+  const hit = pick(e);
+  if (!hit) return;
+  controls.enabled = false; // runs before OrbitControls' own handler, so the camera stays put
+  select(hit.piece);
+  drag = { piece: hit.piece, plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -hit.point.y), start: hit.point.clone(), m0: moveOf(hit.piece), id: e.pointerId };
+  canvas.setPointerCapture(e.pointerId);
+}, { capture: true });
+canvas.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  rayFrom(e);
+  const p = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(drag.plane, p)) return;
+  const d = p.sub(drag.start);
+  setMove(drag.piece, [drag.m0[0] + d.x * 100, drag.m0[1] - d.z * 100, drag.m0[2]]);
+});
+function endDrag(e) {
+  if (drag) {
+    try { canvas.releasePointerCapture(drag.id); } catch {}
+    drag = null;
+    controls.enabled = true;
+    syncPanel();
+  } else if (downAt && e && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 4 && !pick(e)) {
+    select(null); // a plain click on the room clears the selection
+  }
+  downAt = null;
+}
+canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointercancel", () => endDrag(null));
+function rotateSelected(deg) {
+  if (!selected) return;
+  const m = moveOf(selected);
+  setMove(selected, [m[0], m[1], (((m[2] + deg) % 360) + 540) % 360 - 180]);
+  syncPanel();
+}
+pieceBar.addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.rot) rotateSelected(Number(b.dataset.rot));
+  if (b.id === "piece-reset" && selected) { setMove(selected, [0, 0, 0]); syncPanel(); }
+  if (b.id === "piece-done") select(null);
+});
+window.addEventListener("keydown", (e) => {
+  if (!selected || e.target.closest("input, textarea")) return;
+  if (e.key === "q" || e.key === "Q") rotateSelected(-15);
+  if (e.key === "e" || e.key === "E") rotateSelected(15);
+  if (e.key === "Escape") select(null);
+});
+document.getElementById("reset-moves").addEventListener("click", () => {
+  state.moves = {};
+  applyLayout(state, false);
+  applyPieceMoves(state);
+  syncPanel();
+});
+
 // Copy a link that reopens this exact setup
 document.getElementById("copy-link").addEventListener("click", async () => {
   const url = shareUrl(), status = document.getElementById("copy-status"), input = document.getElementById("share-url");
