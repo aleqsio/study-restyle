@@ -69,6 +69,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   font: 500 12.5px/1 var(--font-body); color: var(--ink); background: var(--chip); border: 1px solid var(--line);
   padding: 7px 10px; border-radius: 8px; cursor: pointer;
 }
+.piecebar button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .piecebar button.done { background: var(--ink); color: var(--panel); border-color: var(--ink); }
 .hint {
   position: absolute; bottom: 12px; left: max(12px, env(safe-area-inset-left, 0px));
@@ -186,9 +187,11 @@ details.xgroup summary b { font-weight: 500; color: var(--accent); margin-left: 
       </div>
       <button class="compare" id="compare">Hold to see the room today</button>
     </div>
-    <div class="hint" id="hint">Drag to orbit · scroll to zoom · drag furniture to move it, then rotate with Q/E</div>
+    <div class="hint" id="hint">Drag to orbit · scroll to zoom · click furniture to move or turn it</div>
     <div class="piecebar" id="piecebar" hidden role="toolbar" aria-label="Selected furniture">
       <b id="piece-name"></b>
+      <button id="gizmo-move" aria-pressed="true">Move</button>
+      <button id="gizmo-rotate" aria-pressed="false">Rotate</button>
       <button data-rot="-15" title="Rotate left (Q)">⟲ 15°</button>
       <button data-rot="15" title="Rotate right (E)">⟳ 15°</button>
       <button data-rot="90">⟳ 90°</button>
@@ -252,6 +255,7 @@ details.xgroup summary b { font-weight: 500; color: var(--accent); margin-left: 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { TransformControls } from "three/addons/controls/TransformControls.js";
 
 // Room size in metres (Blender: x east, y north, z up -> three: x, z, -y)
 const W = 2.762, D = 3.336, H = 2.70;
@@ -1270,7 +1274,7 @@ function setLookMode(on) {
   controls.minDistance = on ? 0.01 : 0.4; // the look pivot sits 5 cm ahead of the eye
   controls.minPolarAngle = on ? 0.15 : 0;
   controls.maxPolarAngle = on ? Math.PI - 0.15 : Math.PI * 0.49;
-  hintEl.textContent = on ? "Drag to look around · scroll to zoom · drag furniture to move it" : "Drag to orbit · scroll to zoom · drag furniture to move it, then rotate with Q/E";
+  hintEl.textContent = on ? "Drag to look around · scroll to zoom · click furniture to move it" : "Drag to orbit · scroll to zoom · click furniture to move or turn it";
 }
 // Orbiting around a point 5 cm in front of the eye is the same as turning the head
 function lookTarget(pos, target) {
@@ -1379,8 +1383,9 @@ const selBox = new THREE.Box3(), selHelper = new THREE.Box3Helper(selBox, 0xe0ad
 selHelper.visible = false;
 scene.add(selHelper);
 var selected = null;
-let drag = null, downAt = null;
+let downAt = null;
 function visibleChain(o) { for (let x = o; x; x = x.parent) if (!x.visible) return false; return true; }
+function isGizmo(o) { for (let x = o; x; x = x.parent) if (x === gizmo) return true; return false; }
 function pieceOf(o) { for (let x = o; x; x = x.parent) if (x.userData && x.userData.piece) return x; return null; }
 function pieceLabel(key) {
   if (key === "desk") return "Desk";
@@ -1398,7 +1403,7 @@ function rayFrom(e) {
 function pick(e) {
   rayFrom(e);
   for (const h of raycaster.intersectObjects(scene.children, true)) {
-    if (!h.object.isMesh || !visibleChain(h.object)) continue;
+    if (!h.object.isMesh || !visibleChain(h.object) || isGizmo(h.object)) continue;
     const p = pieceOf(h.object);
     return p ? { piece: p, point: h.point } : null; // the nearest visible thing wins, so walls block picks
   }
@@ -1417,7 +1422,8 @@ function select(p) {
   selected = p;
   selHelper.visible = !!p;
   pieceBar.hidden = !p;
-  if (p) document.getElementById("piece-name").textContent = pieceLabel(p.userData.piece);
+  if (p) { document.getElementById("piece-name").textContent = pieceLabel(p.userData.piece); gizmo.attach(p); }
+  else gizmo.detach();
 }
 function moveOf(p) { return state.moves[p.userData.pieceHash] || [0, 0, 0]; }
 function setMove(p, m) {
@@ -1426,37 +1432,59 @@ function setMove(p, m) {
   applyLayout(state, false);
   applyPieceMoves(state);
 }
+// Dragging always moves the camera; a click (no drag) selects a piece and the gizmo moves it:
+// arrows slide it along the floor, the ring turns it.
 canvas.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0 || comparing) return;
-  downAt = { x: e.clientX, y: e.clientY };
-  const hit = pick(e);
-  if (!hit) return;
-  controls.enabled = false; // runs before OrbitControls' own handler, so the camera stays put
-  select(hit.piece);
-  drag = { piece: hit.piece, plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -hit.point.y), start: hit.point.clone(), m0: moveOf(hit.piece), id: e.pointerId };
-  canvas.setPointerCapture(e.pointerId);
-}, { capture: true });
-canvas.addEventListener("pointermove", (e) => {
-  if (!drag) return;
-  rayFrom(e);
-  const p = new THREE.Vector3();
-  if (!raycaster.ray.intersectPlane(drag.plane, p)) return;
-  const d = p.sub(drag.start);
-  setMove(drag.piece, [drag.m0[0] + d.x * 100, drag.m0[1] - d.z * 100, drag.m0[2]]);
+  if (e.button === 0) downAt = { x: e.clientX, y: e.clientY };
 });
-function endDrag(e) {
-  if (drag) {
-    try { canvas.releasePointerCapture(drag.id); } catch {}
-    drag = null;
-    controls.enabled = true;
-    syncPanel();
-  } else if (downAt && e && Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 4 && !pick(e)) {
-    select(null); // a plain click on the room clears the selection
-  }
+canvas.addEventListener("pointerup", (e) => {
+  if (!downAt || comparing || gizmo.dragging) { downAt = null; return; }
+  const clicked = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) < 4;
   downAt = null;
+  if (!clicked) return;
+  const hit = pick(e);
+  if (hit) select(hit.piece);
+  else if (!gizmoUnder(e)) select(null);
+});
+function gizmoUnder(e) {
+  if (!selected) return false;
+  rayFrom(e);
+  return raycaster.intersectObject(gizmo, true).some((h) => visibleChain(h.object));
 }
-canvas.addEventListener("pointerup", endDrag);
-canvas.addEventListener("pointercancel", () => endDrag(null));
+function setGizmoMode(mode) {
+  gizmo.setMode(mode);
+  gizmo.showX = gizmo.showZ = mode === "translate";
+  gizmo.showY = mode === "rotate";
+  document.getElementById("gizmo-move").setAttribute("aria-pressed", String(mode === "translate"));
+  document.getElementById("gizmo-rotate").setAttribute("aria-pressed", String(mode === "rotate"));
+}
+// The pose the piece would have without any move: its layout target, or where the model put it
+function basePose(p) {
+  const t = BASE[p.name] ? lastTargets[p.name] : p.userData.base;
+  return t ? { pos: t.pos, rot: t.rot } : { pos: p.position.clone(), rot: p.rotation.y };
+}
+const gizmo = new TransformControls(camera, canvas);
+gizmo.setSpace("world");
+gizmo.setSize(0.8);
+gizmo.setTranslationSnap(0.01);
+gizmo.setRotationSnap(THREE.MathUtils.degToRad(5));
+scene.add(gizmo);
+setGizmoMode("translate");
+gizmo.addEventListener("dragging-changed", (e) => {
+  controls.enabled = !e.value;
+  if (!e.value) syncPanel(); // save to the link once the drag ends
+});
+gizmo.addEventListener("objectChange", () => {
+  const p = selected;
+  if (!p) return;
+  p.position.y = basePose(p).pos.y; // stay on the floor
+  const b = basePose(p);
+  const m = [(p.position.x - b.pos.x) * 100, -(p.position.z - b.pos.z) * 100, THREE.MathUtils.radToDeg(p.rotation.y - b.rot)];
+  if (m.every((v) => Math.abs(v) < 0.5)) delete state.moves[p.userData.pieceHash];
+  else state.moves[p.userData.pieceHash] = m;
+});
+document.getElementById("gizmo-move").addEventListener("click", () => setGizmoMode("translate"));
+document.getElementById("gizmo-rotate").addEventListener("click", () => setGizmoMode("rotate"));
 function rotateSelected(deg) {
   if (!selected) return;
   const m = moveOf(selected);
