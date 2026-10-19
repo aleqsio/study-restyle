@@ -1312,7 +1312,7 @@ function renderObjectSettings(o) {
   html += `<section class="block"><p class="row-label">Position</p><div class="actions">
     ${t.mount === "floor" ? `<button class="btn" data-turn="-15">⟲ 15°</button><button class="btn" data-turn="15">⟳ 15°</button><button class="btn" data-turn="90">⟳ 90°</button>` : ""}
     <button class="btn" data-act="home">Back to its usual spot</button></div>
-    <p class="note">${t.mount === "floor" ? "Drag the arrows to slide it, the ring to turn it." : "Drag the arrows to slide it along the wall or up and down."}</p></section>
+    <p class="note">${t.mount === "floor" ? "Drag the arrows to slide it, the ring to turn it." : "Drag the arrows to slide it along the wall or up and down. Drag it across the room or round a corner to hang it on another wall."}</p></section>
     <section class="block"><div class="actions"><button class="btn" data-act="dup">Duplicate</button><button class="btn danger" data-act="del">Remove from the room</button></div></section>`;
   el.innerHTML = html;
 }
@@ -1552,20 +1552,13 @@ function select(o, openTab = false) {
     document.getElementById("piece-name").textContent = infoOf(o.p).name;
     const wall = TPL[o.p].mount === "wall";
     moveGizmo.attach(node);
-    const n = facingNormal(o);
     moveGizmo.showY = wall;
-    moveGizmo.showX = !wall || Math.abs(n[1]) > 0.5;
-    moveGizmo.showZ = !wall || Math.abs(n[0]) > 0.5;
+    moveGizmo.showX = moveGizmo.showZ = true; // wall pieces: drag across the room to move to another wall
     if (wall) turnGizmo.detach(); else turnGizmo.attach(node);
     pieceBar.querySelectorAll("[data-rot]").forEach((b) => { b.hidden = wall; });
     if (openTab) inspectorEl.scrollTop = 0;
   } else { moveGizmo.detach(); turnGizmo.detach(); }
   syncPanels();
-}
-// The direction a wall piece faces (outward from its wall), in plan
-function facingNormal(o) {
-  const a = deg(FACING_ANGLE[TPL[o.p].facing || "W"] + o.r);
-  return [Math.cos(a), Math.sin(a)];
 }
 function updateSelBox() {
   if (selected && (selected.wall || selected.ceiling)) {
@@ -1583,6 +1576,9 @@ function updateSelBox() {
   node.updateWorldMatrix(true, true);
   node.traverseVisible((m) => { if (m.isMesh) selBox.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld)); });
 }
+// Which wall a wall piece hangs on, from the way it faces
+const wallSide = (o) => Object.keys(FACING_ANGLE).find((k) => ((FACING_ANGLE[k] - FACING_ANGLE[TPL[o.p].facing || "W"] - o.r) % 360 + 360) % 360 === 0) || null;
+let dragSide = null;
 // Two gizmos on the same object: arrows to slide, a ring to turn
 const moveGizmo = new TransformControls(camera, canvas);
 moveGizmo.setMode("translate"); moveGizmo.setSpace("world"); moveGizmo.setSize(0.75); moveGizmo.setTranslationSnap(0.01);
@@ -1591,14 +1587,33 @@ turnGizmo.setMode("rotate"); turnGizmo.setSize(1.05); turnGizmo.setRotationSnap(
 turnGizmo.showX = turnGizmo.showZ = false; turnGizmo.showY = true;
 scene.add(moveGizmo, turnGizmo);
 for (const g of [moveGizmo, turnGizmo]) {
-  g.addEventListener("dragging-changed", (e) => { controls.enabled = !e.value; if (!e.value) update(); });
+  g.addEventListener("dragging-changed", (e) => {
+    controls.enabled = !e.value;
+    if (e.value) { const o = selected && state.objects.find((x) => x.id === selected.id); dragSide = o ? wallSide(o) : null; }
+    if (!e.value) update();
+  });
   g.addEventListener("objectChange", () => {
     const o = selected && state.objects.find((x) => x.id === selected.id);
     const node = o && instNodes.get(o.id);
     if (!node) return;
     if (TPL[o.p].mount === "wall") {
-      const n = facingNormal(o);
-      if (Math.abs(n[0]) > 0.5) node.position.x = o.x; else node.position.z = -o.y; // stay on the wall
+      // Always snapped flat to a wall, facing into the room. Dragged past the end of its wall it
+      // wraps round the corner onto the next one; dragged across the room it jumps to the nearest wall.
+      const clamp = THREE.MathUtils.clamp, rx = node.position.x, ry = -node.position.z;
+      const px = clamp(rx, 0, W), py = clamp(ry, 0, D);
+      const [os, d] = [["W", -rx], ["E", rx - W], ["S", -ry], ["N", ry - D]].sort((a, b) => b[1] - a[1])[0];
+      let side, x, y;
+      if (d > 0 && os !== dragSide) {
+        side = os;
+        if (side === "S" || side === "N") [x, y] = [clamp(px < W / 2 ? px + d : px - d, 0, W), side === "S" ? 0 : D];
+        else [x, y] = [side === "W" ? 0 : W, clamp(py < D / 2 ? py + d : py - d, 0, D)];
+      } else {
+        [side] = [["W", px], ["E", W - px], ["S", py], ["N", D - py]].sort((a, b) => a[1] - b[1])[0];
+        [x, y] = side === "W" ? [0, py] : side === "E" ? [W, py] : side === "S" ? [px, 0] : [px, D];
+      }
+      node.position.x = x; node.position.z = -y;
+      o.r = ((FACING_ANGLE[side] - FACING_ANGLE[TPL[o.p].facing || "W"]) % 360 + 540) % 360 - 180;
+      node.rotation.set(0, deg(o.r), 0);
       o.z = node.position.y;
     } else {
       node.position.y = 0; // stay on the floor
