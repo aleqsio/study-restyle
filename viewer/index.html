@@ -679,7 +679,9 @@ renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 60);
+const persp = new THREE.PerspectiveCamera(50, 1, 0.05, 60);
+const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.05, 60); // the plan view, without perspective
+let camera = persp;
 const controls = new OrbitControls(camera, canvas);
 controls.enableDamping = true;
 controls.maxPolarAngle = Math.PI * 0.49;
@@ -1495,13 +1497,13 @@ const VIEWS = {
     return { pos: [ch.x + u[0] * 0.04, ch.y + u[1] * 0.04, 1.2], target: [dk.x + u[0] * 0.2, dk.y + u[1] * 0.2, 1.02], fov: 62 };
   },
   standing: { pos: [1.45, 1.75, 1.63], target: [0.2, 0.4, 1.30], fov: 62 },
-  top: { pos: [W / 2, 8.5, -D / 2 + 0.001], target: [W / 2, 0, -D / 2], fov: 30, three: true },
+  top: { pos: [W / 2, 8.5, -D / 2 + 0.001], target: [W / 2, 0, -D / 2], fov: 30, three: true, ortho: true },
 };
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 function fovFor(v) {
   if (!v.hfov) return v.fov;
   const h = deg(v.hfov) / 2;
-  return Math.min(105, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(h) / camera.aspect)));
+  return Math.min(105, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(h) / persp.aspect)));
 }
 const INSIDE = new Set(["photo", "door", "opposite", "seated", "standing"]);
 const hintEl = document.getElementById("hint");
@@ -1524,6 +1526,18 @@ canvas.addEventListener("wheel", (e) => {
   camera.updateProjectionMatrix();
 }, { passive: false });
 let tween = null, currentView = "doll";
+// Swap the camera in place, keeping where it is and where it looks
+function useCamera(cam) {
+  if (cam === camera) return;
+  cam.position.copy(camera.position);
+  cam.quaternion.copy(camera.quaternion);
+  camera = cam;
+  controls.object = cam;
+  moveGizmo.camera = cam;
+  turnGizmo.camera = cam;
+  if (cam === ortho) ortho.zoom = 1;
+  resize();
+}
 function setView(name, animate = true) {
   currentView = name;
   state.view = name;
@@ -1532,7 +1546,8 @@ function setView(name, animate = true) {
   document.querySelectorAll("#views button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === name)));
   const pos = v.three ? new THREE.Vector3(...v.pos) : toThree(...v.pos);
   const target = v.three ? new THREE.Vector3(...v.target) : toThree(...v.target);
-  const to = { pos, target, fov: fovFor(v), inside };
+  const to = { pos, target, fov: fovFor(v), inside, ortho: !!v.ortho };
+  useCamera(persp);
   if (!inside) setLookMode(false);
   if (loaded) renderObjects(comparing ? TODAY_STATE : state);
   persist();
@@ -1540,6 +1555,7 @@ function setView(name, animate = true) {
     camera.position.copy(to.pos); controls.target.copy(inside ? lookTarget(to.pos, to.target) : to.target);
     camera.fov = to.fov; camera.updateProjectionMatrix();
     if (inside) setLookMode(true);
+    if (to.ortho) useCamera(ortho);
     tween = null; return;
   }
   tween = { from: { pos: camera.position.clone(), target: controls.target.clone(), fov: camera.fov }, to, t0: performance.now(), dur: 700 };
@@ -1588,8 +1604,13 @@ window.addEventListener("hashchange", () => {
 function resize() {
   const r = canvas.parentElement.getBoundingClientRect();
   renderer.setSize(r.width, r.height, false);
-  camera.aspect = r.width / Math.max(1, r.height);
-  camera.updateProjectionMatrix();
+  const aspect = r.width / Math.max(1, r.height);
+  persp.aspect = aspect;
+  persp.updateProjectionMatrix();
+  // Fit the whole floor plan with a little margin
+  const fh = Math.max(D / 2 + 0.3, (W / 2 + 0.3) / aspect);
+  Object.assign(ortho, { left: -fh * aspect, right: fh * aspect, top: fh, bottom: -fh });
+  ortho.updateProjectionMatrix();
 }
 new ResizeObserver(resize).observe(canvas.parentElement);
 resize();
@@ -1603,6 +1624,7 @@ renderer.setAnimationLoop((now) => {
     camera.updateProjectionMatrix();
     if (t === 1) {
       if (tween.to.inside) { controls.target.copy(lookTarget(tween.to.pos, tween.to.target)); setLookMode(true); }
+      if (tween.to.ortho) useCamera(ortho);
       tween = null;
     }
   }
