@@ -1,0 +1,1334 @@
+<meta charset="utf-8">
+<title>Study Restyle Planner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen tool. Room canvas fills the stage; a paper control rail
+   (style, layout, then one row of chips per slot, then add-ons) sits beside it, below on phones. */
+:root {
+  --bg: #f1eee6;
+  --panel: #faf8f3;
+  --ink: #2a211b;
+  --muted: #6f655c;
+  --line: #ddd5c7;
+  --accent: #2f6f6a;
+  --accent-ink: #ffffff;
+  --mustard: #b07f22;
+  --stage: #d9d4c8;
+  --chip: #ece6da;
+  --font-display: "Jost", "Futura", "Century Gothic", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1714; --panel: #231e1a; --ink: #efe7dc; --muted: #a89d90; --line: #3a322b;
+    --accent: #5fb0a8; --accent-ink: #10201e; --mustard: #e0ad4a; --stage: #12100e; --chip: #2e2722;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1b1714; --panel: #231e1a; --ink: #efe7dc; --muted: #a89d90; --line: #3a322b;
+  --accent: #5fb0a8; --accent-ink: #10201e; --mustard: #e0ad4a; --stage: #12100e; --chip: #2e2722;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; overflow: hidden; }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 430px; }
+.stage { position: relative; min-width: 0; background: var(--stage); }
+#room { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#room:active { cursor: grabbing; }
+.stage-top {
+  position: absolute; top: 12px; left: max(12px, env(safe-area-inset-left, 0px)); right: 12px;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center; pointer-events: none;
+}
+.stage-top > * { pointer-events: auto; }
+.seg { display: flex; flex-wrap: wrap; gap: 2px; background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 3px; }
+.seg button {
+  font: 500 12.5px/1 var(--font-body); color: var(--ink); background: transparent; border: 0;
+  padding: 7px 12px; border-radius: 999px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.compare {
+  font: 500 12.5px/1 var(--font-body); color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; cursor: pointer; user-select: none;
+  -webkit-user-select: none; touch-action: none;
+}
+.compare.on { background: var(--mustard); border-color: var(--mustard); color: #1d150c; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint {
+  position: absolute; bottom: 12px; left: max(12px, env(safe-area-inset-left, 0px));
+  font: 12px var(--font-body); color: var(--muted); background: color-mix(in srgb, var(--panel) 85%, transparent);
+  padding: 6px 10px; border-radius: 6px;
+}
+.loading { position: absolute; inset: 0; display: grid; place-items: center; font: 500 14px var(--font-display); color: var(--muted); letter-spacing: .04em; }
+
+.rail {
+  background: var(--panel); border-left: 1px solid var(--line); min-width: 0; overflow-y: auto;
+  padding-block: 18px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px));
+  display: grid; align-content: start; gap: 22px;
+}
+h1 { font: 600 22px/1.1 var(--font-display); margin: 0 0 6px; letter-spacing: .01em; text-wrap: balance; }
+.sub { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.total { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 10px 12px; background: var(--chip); border-radius: 8px; margin-top: 12px; }
+.total span:first-child { font: 500 11px var(--font-body); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.total strong { font: 500 15px var(--font-mono); font-variant-numeric: tabular-nums; }
+.share { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.share button {
+  font: 500 12.5px/1 var(--font-body); padding: 8px 11px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--accent); background: transparent; color: var(--accent);
+}
+.share span { font-size: 12px; color: var(--muted); }
+.share input { flex: 1 1 100%; min-width: 0; font: 400 11.5px var(--font-mono); color: var(--ink); background: var(--chip); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
+
+.block { display: grid; gap: 10px; }
+.block-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.block-head h2 { font: 600 13px var(--font-display); text-transform: uppercase; letter-spacing: .1em; margin: 0; }
+.block-head span { font-size: 12px; color: var(--muted); }
+.choice-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; }
+.choice-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.choice {
+  display: grid; gap: 6px; text-align: left; padding: 9px 10px; border-radius: 8px; cursor: pointer;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); font: 500 13px/1.25 var(--font-body);
+}
+.choice:hover { background: var(--chip); }
+.choice[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
+.choice small { font: 400 11.5px var(--font-mono); color: var(--muted); }
+.swatches { display: flex; gap: 3px; }
+.swatches i { width: 16px; height: 16px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--ink) 15%, transparent); }
+.plan { width: 100%; height: auto; max-width: 100%; display: block; }
+.plan .room { fill: color-mix(in srgb, var(--ink) 4%, transparent); stroke: var(--muted); stroke-width: 1.2; }
+.plan .win { stroke: var(--accent); stroke-width: 3; }
+.plan .door { stroke: var(--panel); stroke-width: 3; }
+.plan .ward { fill: color-mix(in srgb, var(--muted) 45%, transparent); }
+.plan .desk { fill: var(--ink); }
+.plan .piece { fill: var(--mustard); }
+.plan .chair { fill: none; stroke: var(--ink); stroke-width: 1.4; }
+.note { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+
+.presets { display: flex; gap: 6px; flex-wrap: wrap; }
+.presets button {
+  font: 500 12.5px/1 var(--font-body); padding: 8px 11px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--chip); color: var(--ink);
+}
+.presets button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.slot { display: grid; gap: 6px; padding-block: 2px 8px; border-bottom: 1px dashed var(--line); }
+.slot:last-child { border-bottom: 0; }
+.slot-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.slot-head h3 { margin: 0; font: 500 11px var(--font-body); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.slot-head span { font: 400 12px var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip {
+  font: 500 12.5px/1.2 var(--font-body); padding: 6px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+}
+.chip:hover { background: var(--chip); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.chip.blocked { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--mustard); }
+.chip.blocked[aria-pressed="true"] { background: var(--chip); color: var(--muted); border-color: var(--mustard); }
+.slot .note.warn, .xrow .why { color: var(--mustard); }
+
+details.xgroup { border-bottom: 1px dashed var(--line); padding-block: 4px 8px; }
+details.xgroup summary { cursor: pointer; font: 500 11px var(--font-body); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); padding: 6px 0; list-style-position: outside; }
+details.xgroup summary b { font-weight: 500; color: var(--accent); margin-left: 6px; letter-spacing: 0; }
+.xlist { display: grid; grid-template-columns: 1fr; gap: 2px; }
+.xrow { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; gap: 2px 8px; padding: 6px 6px; border-radius: 6px; cursor: pointer; align-items: start; }
+.xrow:hover { background: var(--chip); }
+.xrow input { margin: 2px 0 0; width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.xrow input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.xrow .name { font: 500 13px/1.3 var(--font-body); }
+.xrow .price { font: 400 11.5px/1.4 var(--font-mono); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.xrow .why { grid-column: 2 / 4; font-size: 12px; }
+.xrow.blocked .name { color: var(--muted); }
+.foot { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 58vh auto; height: auto; min-height: 100%; }
+  .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .hint { display: none; }
+}
+</style>
+
+<div class="app">
+  <div class="stage">
+    <canvas id="room" aria-label="3D model of the study. Drag to orbit, scroll or pinch to zoom."></canvas>
+    <div class="loading" id="loading">Loading the room…</div>
+    <div class="stage-top">
+      <div class="seg" id="views" role="group" aria-label="Camera view">
+        <button data-view="doll" aria-pressed="true">Dollhouse</button>
+        <button data-view="photo" aria-pressed="false">Photo angle</button>
+        <button data-view="door" aria-pressed="false">Door corner</button>
+        <button data-view="opposite" aria-pressed="false">Opposite wall</button>
+        <button data-view="seated" aria-pressed="false">Seated</button>
+        <button data-view="standing" aria-pressed="false">Standing</button>
+        <button data-view="top" aria-pressed="false">Plan</button>
+      </div>
+      <div class="seg" id="scenes" role="group" aria-label="Smart bulb scene">
+        <button data-scene="evening" aria-pressed="false">Evening 2200K</button>
+        <button data-scene="everyday" aria-pressed="true">Everyday 2700K</button>
+        <button data-scene="focus" aria-pressed="false">Focus 4000K</button>
+      </div>
+      <button class="compare" id="compare">Hold to see the room today</button>
+    </div>
+    <div class="hint" id="hint">Drag to orbit · right-drag or two fingers to pan · scroll to zoom</div>
+  </div>
+
+  <aside class="rail">
+    <div>
+      <h1>Study restyle</h1>
+      <p class="sub">276 × 334 cm, 2.7 m ceiling. Pick a style and a layout, then a version of each part of the room and any add-ons. Prices are rough Polish street prices.</p>
+      <div class="total"><span>Estimated spend</span><strong id="total">0 zł</strong></div>
+      <div class="share">
+        <button id="copy-link">Copy link to this setup</button>
+        <span id="copy-status" role="status"></span>
+        <input id="share-url" readonly hidden aria-label="Link to this setup">
+      </div>
+    </div>
+
+    <section class="block" aria-labelledby="h-style">
+      <div class="block-head"><h2 id="h-style">Style</h2><span>walls, floor, finishes</span></div>
+      <div class="choice-grid" id="styles"></div>
+      <p class="note" id="style-note"></p>
+    </section>
+
+    <section class="block" aria-labelledby="h-layout">
+      <div class="block-head"><h2 id="h-layout">Layout</h2><span>window at the bottom of each plan</span></div>
+      <div class="choice-grid three" id="layouts"></div>
+      <p class="note" id="layout-note"></p>
+    </section>
+
+    <section class="block" aria-labelledby="h-slots">
+      <div class="block-head"><h2 id="h-slots">The room, piece by piece</h2><span>one per row</span></div>
+      <div class="presets" id="presets" role="group" aria-label="Presets">
+        <button data-preset="today">Today</button>
+        <button data-preset="rec">Mid-century</button>
+        <button data-preset="bold">Bold</button>
+        <button data-preset="maker">Maker</button>
+      </div>
+      <div id="slots"></div>
+    </section>
+
+    <section class="block" aria-labelledby="h-extras">
+      <div class="block-head"><h2 id="h-extras">Add-ons</h2><span id="extras-count">0 on</span></div>
+      <div id="extras"></div>
+    </section>
+
+    <p class="foot">Everything is modelled cheaply from simple shapes, to scale. It shows size, placement and colour, not the exact product. Wood grain, cork and concrete are generated textures. A few ideas have nothing to see (a rug pad, scent), so they are left out.</p>
+  </aside>
+</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+// Room size in metres (Blender: x east, y north, z up -> three: x, z, -y)
+const W = 2.762, D = 3.336, H = 2.70;
+const toThree = (x, y, z) => new THREE.Vector3(x, z, -y);
+const fmt = (n) => (n >= 1000 ? (n / 1000).toLocaleString("en", { maximumFractionDigits: 1 }) + "k" : String(n));
+const range = (lo, hi) => (hi ? `${fmt(lo)}–${fmt(hi)} zł` : "0 zł");
+
+// ---------------------------------------------------------------- data
+const wood = (base, dark, opts = {}) => ({ wood: [base, dark, opts] });
+const conc = (base, opts = {}) => ({ conc: [base, opts] });
+const STYLES = {
+  green: {
+    name: "Mid-century, green", lo: 0, hi: 0, sw: ["#5f8f78", "#8a5459", "#b8862f"],
+    note: "Your room as it is: sage on the wardrobe wall and ceiling, white on the other walls, oak floor, mauve wardrobe.",
+    mats: {},
+  },
+  white: {
+    name: "Mid-century, warm white", lo: 600, hi: 1500, sw: ["#ebe3d5", "#6b4429", "#8a5459"],
+    note: "Warm white walls and ceiling with walnut-toned skirting. The mauve wardrobe, walnut and textiles carry the colour.",
+    mats: {
+      "Wall Green": { c: "#ebe3d5" }, "Shaft": { c: "#ebe3d5" }, "Wall White": { c: "#ebe3d5" },
+      "Ceiling": { c: "#f4f0e9" }, "Skirting Black": { c: "#5a3a24" },
+    },
+  },
+  brutal: {
+    name: "Brutalist", lo: 8000, hi: 18000, sw: ["#9e9b95", "#3b3a38", "#7a4424"],
+    note: "Microcement on walls and ceiling, a concrete floor finish, charcoal wardrobe, smoked oak, blackened steel, cognac leather. The surfaces need a specialist.",
+    mats: {
+      "Wall Green": conc("#a29f99"), "Shaft": conc("#a29f99"), "Wall White": conc("#a29f99"),
+      "Ceiling": conc("#97948e"), "Oak Floor": conc("#86827c", { polished: true }),
+      "Skirting Black": { c: "#86827c" }, "Wardrobe Mauve": { c: "#3b3a38", rough: 0.8 },
+      "Walnut": wood("#3c2c22", "#22180f"), "Light Oak": wood("#7b6a57", "#4f4234"), "Reeded Oak": wood("#5c4c3e", "#3a2f25"),
+      "Brass": { c: "#2b2b2b", metal: 0.7, rough: 0.4 },
+      "Rug Rust": { c: "#3d3b39" }, "Rug Mustard": { c: "#d6cdbd" }, "Rug Cream": { c: "#8a3a22" }, "Rug Ink": { c: "#d6cdbd" },
+      "Armchair Mustard Wool": { c: "#7a4424", rough: 0.55 }, "Linen Curtain": { c: "#a8a39a" },
+    },
+  },
+  japandi: {
+    name: "Japandi", lo: 1200, hi: 3000, sw: ["#e4ddd0", "#c4a57e", "#cdbfa9"],
+    note: "Limewashed greige walls, pale oak and ash, a sand-coloured wardrobe, oatmeal bouclé and a muted rug.",
+    mats: {
+      "Wall Green": conc("#e2dace", { lime: true }), "Shaft": conc("#e2dace", { lime: true }), "Wall White": conc("#e2dace", { lime: true }),
+      "Ceiling": { c: "#f2eee6" }, "Oak Floor": wood("#c9a878", "#a3814f", { planks: 22, streak: 900, size: 2048 }),
+      "Skirting Black": { c: "#e2dace" }, "Wardrobe Mauve": { c: "#cdbfa9" },
+      "Walnut": wood("#c4a57e", "#9c7f58"), "Light Oak": wood("#d4b78e", "#a88a60"), "Reeded Oak": wood("#cfb48b", "#a3875e"),
+      "Brass": { c: "#5d5b56", metal: 0.6, rough: 0.4 }, "Desk Black Ash": wood("#c4a57e", "#9c7f58"),
+      "Rug Rust": { c: "#d9d0c1" }, "Rug Mustard": { c: "#8a7b66" }, "Rug Cream": { c: "#b9ab95" }, "Rug Ink": { c: "#6f655a" },
+      "Armchair Mustard Wool": { c: "#ddd4c4" }, "Linen Curtain": { c: "#e6dfd2" },
+    },
+  },
+};
+
+// Group transforms in Blender coordinates: [x, y, extra rotation in degrees]
+const BASE = {
+  grp_desk: [0.35, 0.80, 0], grp_deskwall: [0.0, 0.80, 0], grp_chair: [1.05, 0.75, 0],
+  grp_console: [W - 0.235, 0.95, 0], grp_long: [W - 0.235, 1.025, 0], grp_bench: [W - 0.31, 0.90, 0],
+  grp_hifi: [W - 0.21, 0.95, 0], grp_daybed: [W - 0.40, 1.00, 0], grp_prl: [W - 0.225, 0.95, 0],
+  grp_planchest: [W - 0.37, 0.90, 0], grp_lounge: [W - 0.41, 1.05, 0], grp_beanbag: [W - 0.40, 0.95, 0], grp_eames: [W - 0.55, 1.05, 0],
+};
+const LAYOUTS = {
+  A: {
+    name: "Desk by the wardrobe", note: "As today. Desk against the wardrobe wall, the opposite piece on the east wall.",
+    groups: {}, desk: [0.0, 0.70, 0.10, 1.50], chair: [1.05, 0.75],
+  },
+  B: {
+    name: "Desk at the window", note: "Desk pushed against the window wall over the radiator, so you face the window. Full-height curtains and the radiator bench don't fit.",
+    groups: { grp_desk: [0.95, 0.35, 90], grp_chair: [0.95, 1.10, 50] }, desk: [0.25, 1.65, 0.0, 0.70], chair: [0.95, 1.10],
+  },
+  C: {
+    name: "Desk on the east wall", note: "Desk and shelves move to the bare east wall. The opposite piece moves next to the wardrobe.",
+    groups: {
+      grp_desk: [W - 0.35, 1.05, 180], grp_deskwall: [W, 1.05, 180], grp_chair: [1.65, 1.05, 140],
+      grp_console: [0.235, 0.95, 180], grp_long: [0.235, 0.62, 180], grp_bench: [0.31, 0.90, 180],
+      grp_hifi: [0.21, 0.95, 180], grp_daybed: [0.40, 1.00, 180], grp_prl: [0.225, 0.95, 180],
+      grp_planchest: [0.37, 0.90, 180], grp_lounge: [0.41, 1.05, 180], grp_beanbag: [0.40, 0.95, 180], grp_eames: [0.55, 1.05, 180],
+    },
+    desk: [W - 0.70, W, 0.35, 1.75], chair: [1.65, 1.05],
+    views: { photo: { pos: [2.0, 2.0, 1.45], target: [0.0, 0.9, 1.0] }, opposite: { pos: [1.9, 1.2, 1.55], target: [0.0, 0.95, 0.85] } },
+  },
+};
+
+// Fit rules. Each returns a reason when the choice doesn't fit, else null.
+const BETWEEN_WIDE = ["tower", "plant", "folding"], BETWEEN_THIN = ["fin", "slats", "glass", "felt", "cords"];
+function effDesk(s) { return slotFit(s, "desk", s.slots.desk) ? "today" : s.slots.desk; }
+// The desk starts 10 cm off the window wall and grows toward the wardrobe (which starts at 166.6 cm);
+// 160 cm only fits by sliding it nearer the window.
+const WARDROBE_Y = 1.666;
+function deskLengthCm(s) {
+  const d = effDesk(s);
+  if (d === "l") return 140;
+  if (d === "long") return 275;
+  const v = s.slots.desklen;
+  return slotFit(s, "desklen", v) ? 120 : parseInt(v.slice(1), 10);
+}
+function deskSpan(s) {
+  const L = deskLengthCm(s) / 100;
+  const y0 = Math.min(0.10, WARDROBE_Y - 0.02 - L);
+  return [y0, y0 + L];
+}
+function betweenFit(id) {
+  return (s) => {
+    const desk = effDesk(s), end = deskSpan(s)[1];
+    if (s.layout !== "A") return "Only with the desk by the wardrobe.";
+    if (desk === "long") return "The 275 cm desk runs through that spot.";
+    if (id === "pinboard") return s.slots.wardrobe === "none" ? "Needs the wardrobe." : null;
+    if (id === "paint") return null;
+    if (end > 1.62) return "A 160 cm desk leaves no gap.";
+    if (BETWEEN_WIDE.includes(id) && end > 1.41) return "Needs a desk of 130 cm or less to make room.";
+    if (id === "felt" ? end > 1.61 : BETWEEN_THIN.includes(id) && end > 1.55) return "Needs a desk of 140 cm or less.";
+    if (s.slots.pc === "today") return "The PC tower stands there. Put it on the caddy or mount (PC tower).";
+    return null;
+  };
+}
+function lenFit(s) {
+  const d = s.slots.desk;
+  if (d === "l" && !slotFit(s, "desk", d)) return "The L-shaped desk sets its own length.";
+  if (d === "long" && !slotFit(s, "desk", d)) return "The 275 cm desk sets its own length.";
+  return null;
+}
+function freedFit(s) {
+  if (s.slots.wardrobe !== "none") return "Only when the wardrobe is removed.";
+  if (s.slots.desk === "long" && s.layout === "A") return "The 275 cm desk runs along that wall.";
+  if (s.layout === "C" && ["long", "daybed", "lounge"].includes(s.slots.opp)) return "The opposite piece runs along that wall in this layout.";
+  return null;
+}
+const notB = (why) => (s) => (s.layout === "B" ? why : null);
+const SLOTS = [
+  { id: "paint", name: "Paint", section: "Walls and light", variants: {
+    today: { name: "As the style", lo: 0, hi: 0, note: "Walls as the style above sets them." },
+    ceilwhite: { name: "White ceiling", lo: 300, hi: 700, note: "Warm white ceiling so 2.7 m feels taller. (1)", mats: { "Ceiling": { c: "#f4f0e9" } } },
+    twotone: { name: "Two-tone", lo: 400, hi: 900, note: "Sage up to 110 cm, warm white above, with an oak rail at the line. (2)" },
+    drench: { name: "Colour-drench", lo: 600, hi: 1500, note: "Wardrobe, skirting and door painted the wall's sage so they recede. (3)",
+      mats: { "Wardrobe Mauve": { c: "#5f8f78" }, "Door White": { c: "#5f8f78" }, "Skirting Black": { c: "#5f8f78" } } },
+    doorolive: { name: "Olive door wall", lo: 400, hi: 900, note: "Accent moves to the door wall in deep olive; the wardrobe wall goes warm white. (4)",
+      mats: { "Wall Door": { c: "#5d6339" }, "Wall Green": { c: "#ebe3d5" }, "Shaft": { c: "#ebe3d5" }, "Ceiling": { c: "#f2eee6" } } },
+    limewash: { name: "Sage limewash", lo: 500, hi: 1200, note: "Limewash finish on the sage wall for a cloudy, soft depth. (9)",
+      mats: { "Wall Green": conc("#5f8f78", { lime: true }), "Shaft": conc("#5f8f78", { lime: true }) } },
+    shaft: { name: "Mustard shaft", lo: 100, hi: 300, note: "The boxed-in shaft painted mustard as a column of colour. (10)", mats: { "Shaft": { c: "#c9932c" } } },
+  } },
+  { id: "wf", name: "Wall feature", section: "Walls and light", variants: {
+    none: { name: "None", lo: 0, hi: 0, note: "Plain wall behind the desk." },
+    slats: { name: "Oak slats", lo: 1500, hi: 3500, note: "Floor-to-ceiling oak slats on felt behind the desk. Moves with the desk. (5)" },
+    cork: { name: "Cork wall", lo: 300, hi: 800, note: "Cork panel behind the desk for notes, sketches and prints. (7)" },
+    grass: { name: "Grasscloth", lo: 1200, hi: 2500, note: "Grasscloth wallpaper on the wardrobe wall. (6)", mats: { "Wall Green": conc("#b9a77e", { grass: true }) } },
+    rail: { name: "Picture rail", lo: 300, hi: 800, note: "Oak rail round the room at 225 cm, with art hung on cords. No new holes. (8)" },
+  } },
+  { id: "light", name: "Ceiling light", section: "Walls and light", variants: {
+    today: { name: "Black plafon", lo: 0, hi: 0, note: "Your 60 cm black plafon with smart bulbs." },
+    globe: { name: "Opal globe", lo: 300, hi: 800, note: "Opal glass globe pendant on a brass cap." },
+    lantern: { name: "Paper lantern", lo: 400, hi: 1500, note: "Large ribbed paper lantern, Akari style. (15)" },
+    ph: { name: "Layered shades", lo: 800, hi: 3500, note: "PH5-style layered pendant." },
+    track: { name: "Track spots", lo: 600, hi: 1500, note: "Ceiling track with three spots aimed at the desk, wardrobe and corner. (11)" },
+    rattan: { name: "Rattan shade", lo: 200, hi: 600, note: "Flush rattan shade; the smart bulbs stay. (16)" },
+  } },
+  { id: "desklamp", name: "Desk lamp", section: "Desk", variants: {
+    today: { name: "Arm + bulb", lo: 0, hi: 0, note: "Your arm lamp and Edison bulb lamp." },
+    mushroom: { name: "Mushroom", lo: 300, hi: 900, note: "Glossy mushroom lamp in their place." },
+    angle: { name: "Anglepoise", lo: 400, hi: 1500, note: "Black architect lamp at the window end. (19)" },
+  } },
+  { id: "desk", name: "Desk", section: "Desk", variants: {
+    today: { name: "Black, white legs", lo: 0, hi: 0, note: "Your sit/stand desk." },
+    walnut: { name: "Walnut, black legs", lo: 1000, hi: 2500, note: "Walnut top with rounded edges on the same frame, legs painted black, cable tray." },
+    oak: { name: "Light oak", lo: 800, hi: 2000, note: "Light oak top, white legs kept." },
+    wide: { name: "160 cm walnut", lo: 1200, hi: 2800, note: "Use Desk length now.", onlyIf: () => false },
+    l: { name: "L-shaped", lo: 2000, hi: 4500, note: "A return along the window wall, over the radiator. The chair moves back. (48)",
+      fit: (s) => (s.layout !== "A" ? "Only with the desk by the wardrobe." : null), chairAt: { A: [1.10, 1.05, 0] } },
+    long: { name: "275 cm, whole wall", lo: 2500, hi: 5000, onlyIf: (s) => s.slots.wardrobe === "none",
+      note: "With the wardrobe gone, one walnut worktop runs the whole wall: your setup at the window end, a screen-free end with a lamp, books and a sketchbook.",
+      fit: (s) => (s.slots.wardrobe !== "none" ? "Needs the wardrobe removed." : s.layout !== "A" ? "Only with the desk on the wardrobe wall." : null) },
+    short: { name: "130 cm walnut", lo: 900, hi: 2200, note: "Use Desk length now.", onlyIf: () => false },
+  } },
+  { id: "desklen", name: "Desk length", section: "Desk", variants: {
+    l120: { name: "120 cm", lo: 0, hi: 0, note: "Your desk today. Leaves 36 cm before the wardrobe, where the PC stands.", fit: lenFit },
+    l130: { name: "130 cm", lo: 700, hi: 1800, note: "Leaves 26 cm: still room for a slim shelf tower or plants.", fit: lenFit },
+    l140: { name: "140 cm", lo: 750, hi: 2000, note: "Leaves 16 cm: room for a thin divider. The PC moves under the desk.", fit: lenFit },
+    l150: { name: "150 cm", lo: 800, hi: 2200, note: "Leaves 6 cm. The PC has to go under the desk.", fit: lenFit },
+    l160: { name: "160 cm", lo: 850, hi: 2400, note: "Slides 5 cm nearer the window and runs up to the wardrobe. (47)", fit: lenFit },
+  } },
+  { id: "chair", name: "Desk chair", section: "Desk", variants: {
+    today: { name: "IKEA MARKUS", lo: 0, hi: 0, note: "Your current chair." },
+    ag: { name: "Aluminium Group", lo: 5000, hi: 9000, note: "Eames Aluminum Group style, refurbished." },
+    kneel: { name: "Kneeling", lo: 800, hi: 2500, note: "Varier-style kneeling chair in oak and felt. (68)" },
+    cantilever: { name: "Cantilever", lo: 700, hi: 2000, note: "Chrome cantilever with oak and cane, Thonet style." },
+  } },
+  { id: "pc", name: "PC tower", section: "Desk", variants: {
+    today: { name: "On the floor", lo: 0, hi: 0, note: "Where it is now." },
+    caddy: { name: "Wheeled caddy", lo: 150, hi: 300, note: "Under the desk on a walnut caddy." },
+    mount: { name: "Under-desk mount", lo: 150, hi: 400, note: "Strapped under the desk top, off the floor. (76)" },
+  } },
+  { id: "between", name: "Between desk and wardrobe", section: "Desk", variants: {
+    none: { name: "Nothing", lo: 0, hi: 0, note: "Desk and wardrobe side by side, 16 cm apart." },
+    fin: { name: "Oak fin", lo: 300, hi: 800, note: "A single floor-to-ceiling oak board. The cleanest divider.", fit: betweenFit("fin") },
+    slats: { name: "Slatted screen", lo: 800, hi: 2000, note: "Vertical oak slats, floor to ceiling. See-through but clearly a boundary.", fit: betweenFit("slats") },
+    glass: { name: "Reeded glass", lo: 1500, hi: 3500, note: "Reeded glass in an oak frame. Lets light through and blurs the wardrobe.", fit: betweenFit("glass") },
+    felt: { name: "Felt desk screen", lo: 300, hi: 900, note: "Felt panel clamped to the desk end. Also softens the sound on calls.", fit: betweenFit("felt") },
+    pinboard: { name: "Cork on wardrobe", lo: 150, hi: 400, note: "Cork on the wardrobe's side, so it becomes part of the workspace.", fit: betweenFit("pinboard") },
+    cords: { name: "Cord curtain", lo: 200, hi: 600, note: "Cotton cords from a ceiling batten. A soft, see-through edge.", fit: betweenFit("cords") },
+    paint: { name: "Paint the niche", lo: 200, hi: 500, note: "Terracotta behind the desk only, with an oak strip at the edge. Takes no floor space.", fit: betweenFit("paint") },
+    tower: { name: "Shelf tower", lo: 600, hi: 1800, note: "Slim open walnut tower with books, a basket and plants. Switches to the 130 cm desk.", fit: betweenFit("tower") },
+    plant: { name: "Snake plants", lo: 300, hi: 800, note: "A trough of tall snake plants. Switches to the 130 cm desk.", fit: betweenFit("plant") },
+    folding: { name: "Folding screen", lo: 500, hi: 2000, note: "Three-panel oak and cane screen you can move. Switches to the 130 cm desk.", fit: betweenFit("folding") },
+  } },
+  { id: "shelf", name: "Shelves over the desk", section: "Desk", variants: {
+    none: { name: "None", lo: 0, hi: 0, note: "Bare wall above the desk." },
+    string: { name: "String rails", lo: 1200, hi: 3000, note: "String-style rails with three walnut shelves." },
+    planks: { name: "Floating planks", lo: 300, hi: 800, note: "Thick oak planks, staggered, with marble bookends. (87)" },
+    rails: { name: "Aluminium tracks", lo: 1500, hi: 6000, note: "606-style tracks with white shelves and a small cabinet." },
+    cubes: { name: "Wall boxes", lo: 400, hi: 1200, note: "Four open walnut boxes, staggered." },
+    pegboard: { name: "Wood pegboard", lo: 200, hi: 600, note: "Birch pegboard with pegs, two ledges, cups and a plant." },
+  } },
+  { id: "wardrobe", name: "Wardrobe", section: "Furniture", variants: {
+    today: { name: "Mauve", lo: 0, hi: 0, note: "Your 110 cm full-height wardrobe." },
+    reeded: { name: "Reeded oak", lo: 6000, hi: 10000, note: "Custom reeded oak fronts with a wooden pull." },
+    sage: { name: "Painted sage", lo: 300, hi: 800, note: "Same wardrobe, painted the wall colour with a brass bar. (3)" },
+    shoji: { name: "Shoji fronts", lo: 2500, hi: 6000, note: "Sliding paper-and-oak panels over the wardrobe. (100)" },
+    bookcase: { name: "Open bookcase", lo: 3000, hi: 7000, note: "Replaced by a floor-to-ceiling oak bookcase. You lose the hanging space. (52)" },
+    none: { name: "Removed", lo: 0, hi: 0, note: "No wardrobe. The freed 110 cm gets its own row below, starting with a clothes rail so you keep hanging space. Longer pieces also fit on that wall." },
+  } },
+  { id: "freed", name: "Where the wardrobe was", section: "Furniture", onlyIf: (s) => s.slots.wardrobe === "none", variants: {
+    empty: { name: "Empty", lo: 0, hi: 0, note: "Bare wall next to the desk.", fit: freedFit },
+    rail: { name: "Clothes rail", lo: 400, hi: 1200, depth: 0.54, note: "Open steel rail with a shoe shelf, so you still have somewhere to hang clothes.", fit: freedFit },
+    dresser: { name: "Dresser", lo: 1500, hi: 4000, depth: 0.46, note: "Low walnut six-drawer dresser with a globe lamp, a plant and a print above.", fit: freedFit },
+    desk2: { name: "Hobby desk", lo: 600, hi: 1500, depth: 0.60, note: "Screen-free oak trestle desk with a drawing board, a lamp and a stool.", fit: freedFit },
+    nook: { name: "Reading nook", lo: 4000, hi: 6000, depth: 0.75, note: "A 366 armchair facing the room, a floor lamp and a small book shelf.", fit: freedFit },
+    plants: { name: "Plant corner", lo: 600, hi: 1500, depth: 0.45, note: "Fiddle-leaf fig, snake plant and a fern on a stand.", fit: freedFit },
+  } },
+  { id: "window", name: "Window", section: "Furniture", variants: {
+    today: { name: "Roller blind", lo: 0, hi: 0, note: "Your roller blind in its black cassette." },
+    linen: { name: "Linen curtains", lo: 800, hi: 1800, note: "Floor-to-ceiling linen on a ceiling track.", fit: notB("The desk is against the window in this layout.") },
+    venetian: { name: "Wood Venetian", lo: 600, hi: 1500, note: "Wooden Venetian blind inside the reveal, slats open. (21)" },
+    cafe: { name: "Café curtain", lo: 150, hi: 400, note: "Linen on the lower half, for privacy with light above. (22)" },
+    motor: { name: "Motorised blind", lo: 600, hi: 1500, note: "Your cassette with a motor, here half down. (75)" },
+    blackout: { name: "Blackout", lo: 1000, hi: 2200, note: "Heavy lined charcoal curtains. (99)", fit: notB("The desk is against the window in this layout.") },
+  } },
+  { id: "rug", name: "Rug", section: "Furniture", variants: {
+    none: { name: "None", lo: 0, hi: 0, note: "Bare oak floor." },
+    geo: { name: "Geometric wool", lo: 600, hi: 1200, note: "160 × 230 with a border and discs. Colours follow the style." },
+    jute: { name: "Round jute", lo: 300, hi: 800, note: "Round jute under the corner by the door. (31)" },
+    kilim: { name: "Kilim", lo: 800, hi: 3000, note: "Vintage-style kilim in madder, navy and ochre. (38)" },
+  } },
+  { id: "art", name: "Art", section: "Furniture", variants: {
+    none: { name: "None", lo: 0, hi: 0, note: "No art." },
+    posters: { name: "Polish School", lo: 200, hi: 500, note: "Two framed reprints: above the desk and on the shaft." },
+    film: { name: "Film posters", lo: 300, hi: 700, note: "Vintage Polish film posters in black frames. (84)" },
+    gallery: { name: "Gallery wall", lo: 300, hi: 900, note: "Six mixed frames on the white door wall, a city map among them. (81, 85)" },
+    clock: { name: "Sunburst clock", lo: 300, hi: 900, note: "Brass sunburst clock on the shaft. (82)" },
+    textile: { name: "Wall hanging", lo: 500, hi: 1500, note: "Woven hanging in ochre and rust above the corner. (39, 90)",
+      fit: (s) => (s.slots.corner === "bookcase" ? "The corner bookcase takes that wall." : null) },
+  } },
+  { id: "corner", name: "Corner by the door", section: "Furniture", variants: {
+    none: { name: "Empty", lo: 0, hi: 0, note: "Free floor by the door." },
+    reading: { name: "Reading corner", lo: 4000, hi: 6000, note: "A 366 armchair, tripod floor lamp and round side table." },
+    rocker: { name: "Rocker + lantern", lo: 1500, hi: 3500, note: "Bentwood rocking chair and a paper floor lantern. (63, 15)" },
+    bookcase: { name: "Tall bookcase", lo: 800, hi: 2500, note: "Open oak bookcase against the east wall." },
+    pair: { name: "Two armchairs", lo: 8000, hi: 12000, note: "A pair of 366 armchairs and a tulip coffee table. (62)" },
+    hanging: { name: "Hanging chair", lo: 1200, hi: 3000, note: "Rattan egg chair on a ceiling anchor. Check the slab first. (67)" },
+    beanbag: { name: "Bean bag", lo: 600, hi: 1800, note: "Leather bean bag and a floor lamp. (70)" },
+    secretary: { name: "Secretary desk", lo: 1500, hi: 4000, note: "Walnut secretary with a flap and a stool, for writing away from screens. (50)" },
+    eames: { name: "Eames lounge chair", lo: 4000, hi: 9000, note: "Eames Lounge Chair and ottoman square to the east wall, with a dome floor lamp over it. Priced as a good replica; an original is about 35k zł." },
+  } },
+  { id: "opp", name: "Opposite the desk", section: "Furniture", variants: {
+    none: { name: "Nothing", lo: 0, hi: 0, note: "Bare wall." },
+    console: { name: "Steel drawers 120", lo: 1500, hi: 3500, rect: [0.46, 0.35, 1.55], note: "Two open steel units with oak tops and drawers, 75 cm high, knick-knacks and a print." },
+    long: { name: "Steel drawers 195", lo: 2500, hi: 5500, rect: [0.46, 0.05, 2.0], note: "Three units in one run with prints on a ledge. Doubles as the side table." },
+    bench: { name: "Electronics bench", lo: 2000, hi: 5000, rect: [0.61, 0.25, 1.55], note: "Steel bench, butcher-block top, pegboard, scope, PSU, soldering station, 3D printer. Gear not priced." },
+    hifi: { name: "Hi-fi unit", lo: 1500, hi: 4000, rect: [0.41, 0.35, 1.55], note: "Walnut unit for your turntable with an amp, records and bookshelf speakers. Gear not priced. (72, 57)" },
+    daybed: { name: "Daybed", lo: 2500, hi: 6000, rect: [0.80, 0.05, 1.95], note: "Low walnut daybed with bolsters, for naps and guests. (61)",
+      fit: (s) => (s.layout === "C" && s.slots.wardrobe !== "none" ? "Needs the wardrobe removed to fit on that wall." : null) },
+    prl: { name: "PRL wall unit", lo: 800, hi: 3000, rect: [0.45, 0.35, 1.55], note: "Restored meblościanka section with a glass vitrine for crystal and porcelain. (56)" },
+    planchest: { name: "Plan chest", lo: 1500, hi: 4000, rect: [0.72, 0.35, 1.45], note: "Flat-file drawers for prints, PCBs and paper, with a task lamp. (59)" },
+    beanbag: { name: "Bean bag", lo: 600, hi: 1800, rect: [1.02, 0.15, 1.72], note: "A big olive corduroy bean bag, a leather pouf as a side table, a floor lamp and a basket of books." },
+    lounge: { name: "Floor sofa", lo: 1500, hi: 4000, rect: [0.80, 0.10, 2.0], note: "Low modular floor sofa with back cushions against the wall. (66)",
+      fit: (s) => (s.layout === "C" && s.slots.wardrobe !== "none" ? "Needs the wardrobe removed to fit on that wall." : null) },
+    eames: { name: "Eames lounge chair", lo: 4000, hi: 9000, rect: [0.95, 0.50, 1.70],
+      note: "Eames Lounge Chair and ottoman in walnut and black leather, square to the wall, with a slim dome floor lamp. Priced as a good replica; an original is about 35k zł." },
+  } },
+  { id: "plant", name: "Plants", section: "Furniture", variants: {
+    none: { name: "None", lo: 0, hi: 0, note: "Just the orchid on the desk." },
+    rubber: { name: "Rubber plant", lo: 250, hi: 500, note: "Tall rubber plant on a walnut stand by the door." },
+    monstera: { name: "Monstera", lo: 200, hi: 600, note: "Big monstera by the door. (97)" },
+    ladder: { name: "Plant ladder", lo: 300, hi: 700, note: "Leaning ladder of pots right of the window. (91)" },
+    hanging: { name: "Hanging pothos", lo: 150, hi: 400, note: "Two macramé hangers with trailing pothos. (92)" },
+    windowrod: { name: "Window rod", lo: 150, hi: 350, note: "A brass rod across the window reveal with small hanging pots. (30)" },
+  } },
+];
+const SLOT = Object.fromEntries(SLOTS.map((s) => [s.id, s]));
+const has = (s, slot, ...ids) => ids.includes(s.slots[slot]);
+const XGROUPS = [
+  { name: "Light", items: {
+    bias: { name: "Monitor bias light", lo: 80, hi: 300, n: "12, 78" },
+    sconces: { name: "Swing-arm wall sconces", lo: 600, hi: 1600, n: "13" },
+    piclights: { name: "Picture lights", lo: 200, hi: 600, n: "14", fit: (s) => (has(s, "art", "posters", "film") ? null : "Needs the posters (Art).") },
+    uplight: { name: "Uplight on the green shaft", lo: 100, hi: 300, n: "18" },
+    nightlight: { name: "Motion night light", lo: 50, hi: 150, n: "20" },
+  } },
+  { name: "Window and heating", items: {
+    pelmet: { name: "Wooden pelmet over the blind", lo: 600, hi: 1500, n: "27, 28" },
+    sill: { name: "Deeper oak sill", lo: 400, hi: 900, n: "23", fit: notB("The monitor would hit it in this layout.") },
+    film: { name: "Reeded window film", lo: 100, hi: 250, n: "29" },
+    colrad: { name: "Black column radiator", lo: 3000, hi: 6000, n: "25" },
+    trv: { name: "Smart radiator valve", lo: 200, hi: 400, n: "26" },
+    bench: { name: "Radiator bench", lo: 2500, hi: 5000, n: "", fit: notB("The desk sits over the radiator in this layout.") },
+  } },
+  { name: "Floor and soft things", items: {
+    runner: { name: "Runner along the west wall", lo: 200, hi: 600, n: "33" },
+    chairmat: { name: "Felt chair mat", lo: 100, hi: 300, n: "32" },
+    sheepskin: { name: "Sheepskin on the desk chair", lo: 150, hi: 400, n: "34" },
+    throw: { name: "Throw and cushions", lo: 200, hi: 600, n: "35", fit: (s) => (has(s, "corner", "reading", "pair") ? null : "Needs an armchair (Corner).") },
+    pouf: { name: "Leather pouf", lo: 300, hi: 900, n: "37" },
+    ottoman: { name: "Ottoman", lo: 500, hi: 1500, n: "64", fit: (s) => (has(s, "corner", "reading") ? null : "Goes with the reading corner.") },
+    darkfloor: { name: "Re-oil the floor darker", lo: 3000, hi: 6000, n: "36" },
+  } },
+  { name: "Desk", items: {
+    monarm: { name: "Monitor arm", lo: 200, hi: 600, n: "41" },
+    pedestal: { name: "Drawer pedestal on castors", lo: 400, hi: 1200, n: "42" },
+    pad: { name: "Felt desk pad", lo: 80, hi: 250, n: "43" },
+    riser: { name: "Walnut monitor riser", lo: 150, hi: 400, n: "44" },
+    spine: { name: "Cable spine", lo: 60, hi: 150, n: "45" },
+    screen2: { name: "Vertical second monitor", lo: 800, hi: 2000, n: "46", fit: (s) => (deskSpan(s)[1] < 1.48 && effDesk(s) !== "long" ? "Needs a desk of 140 cm or more." : null) },
+    charger: { name: "Wireless charger", lo: 100, hi: 300, n: "49" },
+    acc: { name: "Teak and brass accessories", lo: 150, hi: 500, n: "86" },
+    mic: { name: "Mic arm", lo: 150, hi: 500, n: "79" },
+    perch: { name: "Standing perch stool", lo: 300, hi: 900, n: "65" },
+    rack: { name: "10-inch home-lab rack", lo: 600, hi: 2000, n: "77" },
+  } },
+  { name: "Walls and storage", items: {
+    shaftshelves: { name: "Floating shelves on the shaft", lo: 150, hi: 400, n: "53", fit: (s) => (has(s, "art", "posters", "film", "clock") ? "The art on the shaft is in the way." : null) },
+    laddershelf: { name: "Ladder shelf by the door", lo: 300, hi: 800, n: "54", fit: (s) => (has(s, "plant", "rubber", "monstera") ? "The plant by the door is in the way." : null) },
+    hooks: { name: "Hook rail on the door", lo: 80, hi: 250, n: "55" },
+    abovedoor: { name: "Cabinet above the door", lo: 800, hi: 2000, n: "58" },
+    baskets: { name: "Woven baskets", lo: 80, hi: 250, n: "60" },
+    pegrail: { name: "Shaker peg rail, folding chairs", lo: 400, hi: 1200, n: "69", fit: (s) => (has(s, "art", "gallery") ? "The gallery wall uses that wall." : null) },
+    felt: { name: "Felt acoustic panels", lo: 400, hi: 1200, n: "94" },
+    eink: { name: "E-ink dashboard by the door", lo: 300, hi: 800, n: "73" },
+  } },
+  { name: "Gadgets and objects", items: {
+    projector: { name: "Projector and pull-down screen", lo: 1500, hi: 4000, n: "71", fit: (s) => (has(s, "plant", "hanging") ? "The hanging plants are in the way." : null) },
+    co2: { name: "CO₂ and temperature sensor", lo: 150, hi: 500, n: "74" },
+    matrix: { name: "LED matrix clock", lo: 100, hi: 300, n: "80" },
+    figurines: { name: "Ćmielów figurines", lo: 100, hi: 600, n: "83" },
+    flipclock: { name: "Flip clock", lo: 100, hi: 300, n: "88", fit: (s) => (has(s, "corner", "reading") && !sideTableHidden(s) ? null : "Sits on the reading corner's side table.") },
+    globe: { name: "Vintage floor globe", lo: 300, hi: 1200, n: "89", fit: (s) => (has(s, "plant", "ladder") ? "The plant ladder is in the way." : null) },
+    growlight: { name: "Grow light under the shelves", lo: 100, hi: 300, n: "93", fit: (s) => (has(s, "shelf", "none") ? "Needs shelves over the desk." : null) },
+    excluder: { name: "Draught excluder", lo: 50, hi: 150, n: "95" },
+    humidifier: { name: "Ceramic humidifier", lo: 200, hi: 600, n: "96" },
+    terrarium: { name: "Terrarium on the sill", lo: 100, hi: 300, n: "98" },
+  } },
+];
+const XITEM = Object.fromEntries(XGROUPS.flatMap((g) => Object.entries(g.items)));
+const XMATS = { darkfloor: { "Oak Floor": wood("#7a4f2a", "#4a2e14", { planks: 22, streak: 900, size: 2048 }) } };
+
+const allSlots = (v) => Object.fromEntries(SLOTS.map((s) => [s.id, Object.keys(s.variants)[0]]));
+const PRESETS = {
+  today: { slots: allSlots(), extras: [] },
+  rec: { slots: { ...allSlots(), light: "globe", desklamp: "mushroom", desk: "walnut", pc: "caddy", shelf: "string", window: "linen",
+    rug: "geo", art: "posters", corner: "reading", opp: "console", plant: "rubber" }, extras: ["bias", "throw", "acc"] },
+  bold: { slots: { ...allSlots(), paint: "doorolive", wf: "slats", light: "lantern", desklamp: "angle", desk: "walnut", desklen: "l160", chair: "cantilever", pc: "mount",
+    shelf: "rails", wardrobe: "bookcase", window: "venetian", rug: "kilim", art: "gallery", corner: "rocker", opp: "hifi", plant: "hanging" },
+    extras: ["sconces", "uplight", "sheepskin", "monarm", "pad", "felt", "pelmet"] },
+  maker: { slots: { ...allSlots(), wf: "cork", light: "track", desklamp: "angle", desk: "l", chair: "kneel", pc: "mount", shelf: "pegboard",
+    window: "motor", rug: "none", art: "film", corner: "bookcase", opp: "bench", plant: "ladder" },
+    extras: ["rack", "mic", "screen2", "matrix", "co2", "eink", "monarm", "spine", "growlight", "felt"] },
+};
+const clone = (p) => ({ slots: { ...p.slots }, extras: new Set(p.extras) });
+const TODAY = { style: "green", layout: "A", ...clone(PRESETS.today) };
+const state = { style: "green", layout: "A", scene: "everyday", view: "doll", ...clone(PRESETS.rec) };
+
+// ---------------------------------------------------------------- setup in the URL
+// The whole setup packs into one plain token (letters, digits, "-") so it survives
+// in an artifact link's #anchor: "r1" + style, layout, scene, view, one base-36
+// character per slot, then "-" and the add-ons as a base-36 bitset.
+// Keep the orders below append-only so old links keep working.
+const ARTIFACT_URL = "https://claude.ai/artifact/BHxgha47mDLkzA654ebKGK";
+const STYLE_KEYS = Object.keys(STYLES), LAYOUT_KEYS = Object.keys(LAYOUTS);
+const SCENE_KEYS = ["evening", "everyday", "focus"];
+const VIEW_KEYS = ["doll", "photo", "door", "opposite", "seated", "standing", "top"];
+const X_KEYS = Object.keys(XITEM);
+// Slot order inside the link; only ever append, so earlier links keep decoding
+const SLOT_CODE_ORDER = ["paint", "wf", "light", "desklamp", "desk", "chair", "pc", "shelf", "wardrobe", "freed",
+  "window", "rug", "art", "corner", "opp", "plant", "between", "desklen"];
+function encodeSetup(s) {
+  const ch = (i) => Math.max(0, i).toString(36);
+  let t = "r1" + ch(STYLE_KEYS.indexOf(s.style)) + ch(LAYOUT_KEYS.indexOf(s.layout)) + ch(SCENE_KEYS.indexOf(s.scene)) + ch(VIEW_KEYS.indexOf(s.view));
+  for (const id of SLOT_CODE_ORDER) t += ch(Object.keys(SLOT[id].variants).indexOf(s.slots[id]));
+  let bits = 0n;
+  X_KEYS.forEach((k, i) => { if (s.extras.has(k)) bits |= 1n << BigInt(i); });
+  return t + "-" + bits.toString(36);
+}
+function decodeSetup(tok) {
+  const m = /^r1([0-9a-z]+)-([0-9a-z]*)$/.exec(tok || "");
+  if (!m) return null;
+  const c = m[1], at = (i, keys) => keys[parseInt(c[i], 36)];
+  const out = { slots: { ...PRESETS.today.slots }, extras: new Set() };
+  out.style = at(0, STYLE_KEYS) || "green";
+  out.layout = at(1, LAYOUT_KEYS) || "A";
+  out.scene = at(2, SCENE_KEYS) || "everyday";
+  out.view = at(3, VIEW_KEYS) || "doll";
+  SLOT_CODE_ORDER.forEach((id, i) => { const v = c[4 + i] && Object.keys(SLOT[id].variants)[parseInt(c[4 + i], 36)]; if (v) out.slots[id] = v; });
+  let bits = 0n;
+  for (const d of m[2]) bits = bits * 36n + BigInt(parseInt(d, 36));
+  X_KEYS.forEach((k, i) => { if ((bits >> BigInt(i)) & 1n) out.extras.add(k); });
+  return out;
+}
+// Older links stored the 130 and 160 cm desks as desk tops; move them to the length row
+function migrate(saved) {
+  if (!saved) return saved;
+  if (saved.slots.desk === "wide") { saved.slots.desk = "walnut"; saved.slots.desklen = "l160"; }
+  if (saved.slots.desk === "short") { saved.slots.desk = "walnut"; saved.slots.desklen = "l130"; }
+  return saved;
+}
+function readSaved() {
+  const fromHash = decodeSetup(location.hash.slice(1));
+  if (fromHash) return migrate(fromHash);
+  try { return migrate(decodeSetup(localStorage.getItem("study-restyle-setup"))); } catch { return null; }
+}
+let lastToken = "";
+function persist() {
+  const tok = encodeSetup(state);
+  if (tok === lastToken) return;
+  lastToken = tok;
+  try { history.replaceState(null, "", "#" + tok); } catch {}
+  try { localStorage.setItem("study-restyle-setup", tok); } catch {}
+  document.getElementById("share-url").value = shareUrl();
+}
+function shareUrl() {
+  // Inside the claude.ai artifact the page runs on a sandbox host, so link to the artifact itself;
+  // anywhere else (GitHub Pages, a local server) link to this page.
+  const ownHost = /^(localhost|127\.0\.0\.1|\[::1\])$|\.github\.io$/.test(location.hostname) || location.protocol === "file:";
+  return (ownHost ? location.href.split("#")[0] : ARTIFACT_URL) + "#" + encodeSetup(state);
+}
+Object.assign(state, readSaved() || {});
+
+function sideTableHidden(s) {
+  return s.layout !== "C" && has(s, "opp", "long", "daybed", "lounge");
+}
+function slotFit(s, slot, id) { const v = SLOT[slot].variants[id]; return v.fit ? v.fit(s) : null; }
+function xFit(s, id) { const v = XITEM[id]; return v.fit ? v.fit(s) : null; }
+// Tags the model uses: "slot:variant" and "x:name", only for choices that fit
+function activeTags(s) {
+  const tags = new Set();
+  for (const sl of SLOTS) if (!slotFit(s, sl.id, s.slots[sl.id])) tags.add(`${sl.id}:${s.slots[sl.id]}`);
+  for (const x of s.extras) if (!xFit(s, x)) tags.add(`x:${x}`);
+  return tags;
+}
+
+// ---------------------------------------------------------------- panel
+function planSVG(L, id) {
+  const s = 18, pad = 4;
+  const X = (x) => pad + x * s, Y = (y) => pad + (D - y) * s;
+  const rect = ([x0, x1, y0, y1], cls) => `<rect class="${cls}" x="${X(x0)}" y="${Y(y1)}" width="${(x1 - x0) * s}" height="${(y1 - y0) * s}" rx="1"/>`;
+  const opp = SLOT.opp.variants[state.slots.opp];
+  let pieceRect = null;
+  if (opp.rect) {
+    const [d, y0, y1] = opp.rect;
+    if (id === "C") {
+      const shift = state.slots.opp === "long" && state.slots.wardrobe !== "none" ? [0.30, 1.60] : [y0, y1];
+      pieceRect = [0, d, ...shift];
+    } else pieceRect = [W - d, W, y0, y1];
+  }
+  const fr = SLOT.freed.variants[state.slots.freed];
+  const ward = state.slots.wardrobe !== "none" ? rect([0, 0.6, D - 1.67, D - 0.56], "ward")
+    : fr.depth && !freedFit({ ...state, layout: id }) ? rect([0, fr.depth, 1.72, 2.76], "piece") : "";
+  return `<svg class="plan" viewBox="0 0 ${W * s + pad * 2} ${D * s + pad * 2}" aria-hidden="true">
+    <rect class="room" x="${X(0)}" y="${Y(D)}" width="${W * s}" height="${D * s}"/>
+    <line class="win" x1="${X(0.07)}" y1="${Y(0)}" x2="${X(1.51)}" y2="${Y(0)}"/>
+    <line class="door" x1="${X(0.76)}" y1="${Y(D)}" x2="${X(1.60)}" y2="${Y(D)}"/>
+    ${ward}${rect([0, 0.52, D - 0.52, D], "ward")}
+    ${rect(id === "A" && state.slots.desk === "long" && state.slots.wardrobe === "none" ? [0, 0.70, 0.02, 2.76]
+      : id === "A" ? [0, 0.70, ...deskSpan({ ...state, layout: "A" })] : L.desk, "desk")}${pieceRect ? rect(pieceRect, "piece") : ""}
+    <circle class="chair" cx="${X(L.chair[0])}" cy="${Y(L.chair[1])}" r="${0.26 * s}"/>
+  </svg>`;
+}
+function choiceButtons(el, entries, key, render) {
+  el.innerHTML = "";
+  for (const [id, v] of Object.entries(entries)) {
+    const b = document.createElement("button");
+    b.className = "choice";
+    b.dataset.id = id;
+    b.innerHTML = render(id, v);
+    b.addEventListener("click", () => { state[key] = id; update(); });
+    el.appendChild(b);
+  }
+}
+choiceButtons(document.getElementById("styles"), STYLES, "style", (id, v) =>
+  `<span class="swatches">${v.sw.map((c) => `<i style="background:${c}"></i>`).join("")}</span>${v.name}<small>${v.hi ? range(v.lo, v.hi) : "no cost"}</small>`);
+choiceButtons(document.getElementById("layouts"), LAYOUTS, "layout", (id, v) => `${planSVG(v, id)}${v.name}`);
+
+const slotsEl = document.getElementById("slots");
+for (const sl of SLOTS) {
+  const row = document.createElement("div");
+  row.className = "slot";
+  row.id = `slot-${sl.id}`;
+  row.innerHTML = `<div class="slot-head"><h3>${sl.name}</h3><span id="price-${sl.id}"></span></div>
+    <div class="chips" role="group" aria-label="${sl.name}">${Object.entries(sl.variants).map(([id, v]) =>
+      `<button class="chip" id="chip-${sl.id}-${id}" data-slot="${sl.id}" data-id="${id}">${v.name}</button>`).join("")}</div>
+    <p class="note" id="note-${sl.id}"></p>`;
+  slotsEl.appendChild(row);
+}
+slotsEl.addEventListener("click", (e) => {
+  const b = e.target.closest(".chip");
+  if (!b) return;
+  state.slots[b.dataset.slot] = b.dataset.id;
+  // Losing the wardrobe means losing hanging space, so start the freed wall with a clothes rail
+  if (b.dataset.slot === "wardrobe" && b.dataset.id === "none" && state.slots.freed === "empty") state.slots.freed = "rail";
+  // A desk that reaches the PC's spot moves the PC under it
+  if (b.dataset.slot === "desklen" && parseInt(b.dataset.id.slice(1), 10) >= 140 && state.slots.pc === "today") state.slots.pc = "caddy";
+  // Dividers make their own room: wide ones shorten the desk, thin ones move the PC under it
+  if (b.dataset.slot === "between" && state.layout === "A") {
+    const len = deskLengthCm(state);
+    if (BETWEEN_WIDE.includes(b.dataset.id) && len > 130) state.slots.desklen = "l130";
+    if (BETWEEN_THIN.includes(b.dataset.id) && len > 140) state.slots.desklen = "l140";
+    if ([...BETWEEN_WIDE, ...BETWEEN_THIN].includes(b.dataset.id) && state.slots.pc === "today") state.slots.pc = "caddy";
+  }
+  update();
+});
+
+const extrasEl = document.getElementById("extras");
+for (const g of XGROUPS) {
+  const det = document.createElement("details");
+  det.className = "xgroup";
+  det.innerHTML = `<summary>${g.name}<b data-count></b></summary><div class="xlist">${Object.entries(g.items).map(([id, v]) => `
+    <label class="xrow" id="row-${id}">
+      <input type="checkbox" id="x-${id}" data-x="${id}">
+      <span class="name">${v.name}</span>
+      <span class="price">${fmt(v.lo)}–${fmt(v.hi)}</span>
+      <span class="why" id="why-${id}" hidden></span>
+    </label>`).join("")}</div>`;
+  extrasEl.appendChild(det);
+}
+extrasEl.addEventListener("change", (e) => {
+  const id = e.target.dataset.x;
+  if (!id) return;
+  e.target.checked ? state.extras.add(id) : state.extras.delete(id);
+  update();
+});
+document.getElementById("presets").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-preset]");
+  if (!b) return;
+  const p = clone(PRESETS[b.dataset.preset]);
+  state.slots = p.slots;
+  state.extras = p.extras;
+  update();
+});
+
+function syncPanel() {
+  const s = state;
+  let lo = STYLES[s.style].lo, hi = STYLES[s.style].hi;
+  for (const sl of SLOTS) {
+    const cur = s.slots[sl.id];
+    for (const id of Object.keys(sl.variants)) {
+      const b = document.getElementById(`chip-${sl.id}-${id}`);
+      const why = slotFit(s, sl.id, id);
+      b.setAttribute("aria-pressed", String(id === cur));
+      b.hidden = !!(sl.variants[id].onlyIf && !sl.variants[id].onlyIf(s));
+      b.classList.toggle("blocked", !!why);
+      b.title = why || "";
+    }
+    document.getElementById(`slot-${sl.id}`).hidden = sl.onlyIf ? !sl.onlyIf(s) : false;
+    const v = sl.variants[cur], why = slotFit(s, sl.id, cur);
+    const note = document.getElementById(`note-${sl.id}`);
+    note.textContent = why ? `${why} Not shown.` : v.note;
+    note.classList.toggle("warn", !!why);
+    const free = sl.id === "desklen" && effDesk(s) !== "today";
+    document.getElementById(`price-${sl.id}`).textContent = why || !v.hi ? "" : free ? "with the new top" : range(v.lo, v.hi);
+    if (!why && !free) { lo += v.lo; hi += v.hi; }
+  }
+  let on = 0;
+  for (const [id, v] of Object.entries(XITEM)) {
+    const cb = document.getElementById(`x-${id}`), why = xFit(s, id), w = document.getElementById(`why-${id}`);
+    cb.checked = s.extras.has(id);
+    document.getElementById(`row-${id}`).classList.toggle("blocked", !!why);
+    w.hidden = !(why && s.extras.has(id));
+    w.textContent = why ? `${why} Not shown.` : "";
+    if (s.extras.has(id) && !why) { lo += v.lo; hi += v.hi; on++; }
+  }
+  document.querySelectorAll("details.xgroup").forEach((d, i) => {
+    const n = Object.keys(XGROUPS[i].items).filter((id) => s.extras.has(id)).length;
+    d.querySelector("[data-count]").textContent = n ? `${n} on` : "";
+  });
+  document.getElementById("extras-count").textContent = `${on} on`;
+  document.getElementById("total").textContent = range(lo, hi);
+  for (const [key, el] of [["style", "styles"], ["layout", "layouts"]]) {
+    document.querySelectorAll(`#${el} .choice`).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === s[key])));
+  }
+  document.querySelectorAll("#layouts .choice").forEach((b) => { b.innerHTML = planSVG(LAYOUTS[b.dataset.id], b.dataset.id) + LAYOUTS[b.dataset.id].name; });
+  document.getElementById("style-note").textContent = STYLES[s.style].note;
+  document.getElementById("layout-note").textContent = LAYOUTS[s.layout].note;
+  document.querySelectorAll("#presets button").forEach((b) => {
+    const p = PRESETS[b.dataset.preset];
+    const same = SLOTS.every((sl) => p.slots[sl.id] === s.slots[sl.id]) && p.extras.length === s.extras.size && p.extras.every((x) => s.extras.has(x));
+    b.setAttribute("aria-pressed", String(same));
+  });
+  document.querySelectorAll("#scenes button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scene === s.scene)));
+  persist();
+}
+
+// ---------------------------------------------------------------- three
+const canvas = document.getElementById("room");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.05, 60);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.minDistance = 0.4;
+controls.maxDistance = 14;
+const hemi = new THREE.HemisphereLight(0xffe6c8, 0x6b5440, 0.75);
+scene.add(hemi);
+
+function setBackground() {
+  const c = getComputedStyle(document.documentElement).getPropertyValue("--stage").trim();
+  scene.background = new THREE.Color(c || "#d9d4c8");
+}
+setBackground();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", setBackground);
+new MutationObserver(setBackground).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+// Generated textures: Blender's node-based woods don't survive glTF export
+function mulberry(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function canvasTex(size, draw) {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  draw(c.getContext("2d"), size);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
+}
+function woodTexture(base, dark, { planks = 0, streak = 260, size = 1024 } = {}) {
+  return canvasTex(size, (g) => {
+    const rand = mulberry(7);
+    g.fillStyle = base; g.fillRect(0, 0, size, size);
+    if (planks) {
+      const pw = size / planks;
+      for (let i = 0; i < planks; i++) {
+        g.fillStyle = `rgba(0,0,0,${0.03 + rand() * 0.08})`; g.fillRect(i * pw, 0, pw, size);
+        g.fillStyle = "rgba(40,20,5,0.35)"; g.fillRect(i * pw, 0, 1.5, size);
+        g.fillRect(i * pw, rand() * size, pw, 1.5);
+      }
+    }
+    g.globalAlpha = 0.18;
+    for (let i = 0; i < streak; i++) {
+      g.strokeStyle = rand() > 0.5 ? dark : base;
+      g.lineWidth = 0.5 + rand() * 2;
+      const x = rand() * size;
+      g.beginPath(); g.moveTo(x, 0);
+      g.bezierCurveTo(x + rand() * 16 - 8, size * 0.33, x + rand() * 16 - 8, size * 0.66, x + rand() * 10 - 5, size);
+      g.stroke();
+    }
+  });
+}
+function concreteTexture(base, { polished = false, lime = false, grass = false } = {}) {
+  return canvasTex(1024, (g, size) => {
+    const rand = mulberry(11);
+    g.fillStyle = base; g.fillRect(0, 0, size, size);
+    if (grass) {
+      for (let i = 0; i < 2600; i++) {
+        g.fillStyle = rand() > 0.5 ? "rgba(255,255,255,0.10)" : "rgba(60,40,10,0.12)";
+        g.fillRect(0, rand() * size, size, 0.8 + rand() * 1.6);
+      }
+      for (let x = 0; x < size; x += size / 6) { g.fillStyle = "rgba(0,0,0,0.12)"; g.fillRect(x, 0, 2, size); }
+      return;
+    }
+    const blots = lime ? 260 : 900;
+    for (let i = 0; i < blots; i++) {
+      const r = (lime ? 40 : 6) + rand() * (lime ? 120 : 40);
+      const grd = g.createRadialGradient(0, 0, 0, 0, 0, r);
+      const a = lime ? 0.06 : polished ? 0.05 : 0.08;
+      const tone = rand() > 0.5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`;
+      grd.addColorStop(0, tone); grd.addColorStop(1, "rgba(0,0,0,0)");
+      g.save(); g.translate(rand() * size, rand() * size); g.fillStyle = grd;
+      g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.fill(); g.restore();
+    }
+    if (!lime && !polished) {
+      for (let y = 0; y < size; y += size / 14) { g.fillStyle = "rgba(0,0,0,0.10)"; g.fillRect(0, y, size, 2); }
+      g.fillStyle = "rgba(0,0,0,0.22)";
+      for (let y = size / 28; y < size; y += size / 7) for (let x = size / 8; x < size; x += size / 4) {
+        g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.fill();
+      }
+    }
+    for (let i = 0; i < 4000; i++) {
+      g.fillStyle = `rgba(0,0,0,${rand() * 0.12})`;
+      g.fillRect(rand() * size, rand() * size, 1.5, 1.5);
+    }
+  });
+}
+function pegTexture(base) {
+  return canvasTex(1024, (g, size) => {
+    g.fillStyle = base; g.fillRect(0, 0, size, size);
+    g.fillStyle = "rgba(0,0,0,0.65)";
+    const cols = 34, rows = 22;
+    for (let i = 0; i < cols; i++) for (let j = 0; j < rows; j++) {
+      g.beginPath(); g.arc((i + 0.5) * size / cols, (j + 0.5) * size / rows, 5, 0, Math.PI * 2); g.fill();
+    }
+  });
+}
+const texCache = new Map();
+function texFor(spec) {
+  const key = JSON.stringify(spec);
+  if (!texCache.has(key)) texCache.set(key, spec.wood ? woodTexture(...spec.wood) : spec.peg ? pegTexture(spec.peg) : concreteTexture(...spec.conc));
+  return texCache.get(key);
+}
+// The look the model ships with
+const ORIGINAL_TEX = {
+  "Pegboard": { peg: "#34363a" },
+  "Birch Pegboard": { peg: "#d8c19a" },
+  "Cork": conc("#b88a5a", { lime: true }),
+  "Oak Floor": wood("#a8723f", "#6d431d", { planks: 22, streak: 900, size: 2048 }),
+  "Walnut": wood("#6b4429", "#3b2414"),
+  "Light Oak": wood("#b98a55", "#7d5730"),
+  "Reeded Oak": wood("#b98950", "#7d5730"),
+  "Window Oak": wood("#b8782f", "#7a4a18"),
+  "Desk Black Ash": wood("#241f1c", "#0e0c0b"),
+  "PRL Veneer": wood("#7a4a2a", "#4a2a14"),
+};
+
+const materials = new Map(); // name -> { mat, orig }
+function applyMaterials(overrides) {
+  for (const [mname, { mat, orig }] of materials) {
+    let spec = overrides[mname];
+    if (!spec && mname === "Wall Door") spec = overrides["Wall White"];
+    spec = spec || ORIGINAL_TEX[mname] || null;
+    if (spec && (spec.wood || spec.conc || spec.peg)) {
+      mat.map = texFor(spec);
+      mat.color.set(0xffffff);
+      mat.roughness = spec.conc && spec.conc[1].polished ? 0.35 : orig.roughness;
+    } else if (spec && spec.c) {
+      mat.map = null;
+      mat.color.set(spec.c);
+      mat.roughness = spec.rough ?? orig.roughness;
+      mat.metalness = spec.metal ?? orig.metalness;
+    } else {
+      mat.map = orig.map;
+      mat.color.copy(orig.color);
+      mat.roughness = orig.roughness;
+      mat.metalness = orig.metalness;
+    }
+    mat.needsUpdate = true;
+  }
+}
+
+// Lights driven by anchors in the model
+function makeLight(kind) {
+  const shadowed = (l, y) => { l.castShadow = true; l.shadow.mapSize.set(1024, 1024); l.shadow.bias = -0.002; l.position.y = y; return l; };
+  switch (kind) {
+    case "ceiling": return shadowed(new THREE.PointLight(0xffd2a0, 8, 0, 2), -0.15);
+    case "pendant": return new THREE.PointLight(0xffc98f, 5, 0, 2);
+    case "desk": return new THREE.PointLight(0xfff2d0, 1.2, 0, 2);
+    case "bulb": return new THREE.PointLight(0xffb060, 0.5, 0, 2);
+    case "mushroom": { const l = new THREE.PointLight(0xffc27a, 1.4, 0, 2); l.position.y = -0.04; return l; }
+    case "floor": return new THREE.PointLight(0xffc98f, 2.2, 0, 2);
+    case "console": return new THREE.PointLight(0xffcf96, 1.2, 0, 2);
+    case "bench": return new THREE.PointLight(0xf4f6ff, 1.6, 0, 2);
+    case "sconce": return new THREE.PointLight(0xffcf96, 1.0, 0, 2);
+    case "uplight": return new THREE.PointLight(0xffd8a8, 1.5, 0, 2);
+    case "bias": return new THREE.PointLight(0xffc890, 0.6, 0, 2);
+    default: return new THREE.PointLight(0xffd2a0, 1, 0, 2);
+  }
+}
+const SCENES = {
+  evening: { ceiling: 0xffb26a, hemi: 0xffcf9a, hemiI: 0.55, mul: 0.75 },
+  everyday: { ceiling: 0xffd2a0, hemi: 0xffe6c8, hemiI: 0.75, mul: 1.0 },
+  focus: { ceiling: 0xf2f4ff, hemi: 0xf2f4ff, hemiI: 0.95, mul: 1.25 },
+};
+
+const tagged = [], wallNodes = [], sideTables = [], module3Nodes = [], chairBacks = [], deskParts = [];
+// Desk tops and frames are modelled 140 cm long (y 0.10-1.50); the viewer stretches them.
+const DESK_PARTS = [
+  [/^Desk_(Top|Top_Walnut|Oak_Top)$/, "top"],
+  [/^Desk_(Foot|Leg|Bracket)_N$|^Desk_(Foot|Leg|Bracket)_Black_N$|^Desk_Oak_(Foot|Leg|Bracket)_1$/, "north"],
+  [/^Desk_(Foot|Leg|Bracket)_S$|^Desk_(Foot|Leg|Bracket)_Black_S$|^Desk_Oak_(Foot|Leg|Bracket)_0$/, "south"],
+  [/^Desk_(Crossbar|Crossbar_Black|Oak_Crossbar)$/, "cross"],
+  [/^Between_Felt/, "north"],
+  [/^PC_(Tower_Tidy|Caddy|Mount)/, "north"], // the tucked-away PC stays under the desk's end
+];
+function applyDeskLength(s) {
+  const [y0, y1] = deskSpan({ ...s, slots: { ...s.slots, desk: ["today", "walnut", "oak"].includes(effDesk(s)) ? s.slots.desk : "today" } });
+  const ds = y0 - 0.10, dn = y1 - 1.50; // blender +y is three -z
+  for (const o of deskParts) {
+    const u = o.userData;
+    const stretch = (k) => {
+      const gc = u.gc || 0, centre0 = u.z0 + u.sz0 * gc;
+      o.scale.z = u.sz0 * k;
+      o.position.z = centre0 - (ds + dn) / 2 - o.scale.z * gc;
+    };
+    if (u.deskPart === "top") stretch((y1 - y0) / 1.40);
+    else if (u.deskPart === "cross") stretch((1.24 + dn - ds) / 1.24);
+    else if (u.deskPart === "north") o.position.z = u.z0 - dn;
+    else if (u.deskPart === "south") o.position.z = u.z0 - ds;
+  }
+}
+// Backrests of the desk chairs, hidden in the seated view so they don't block the eye
+const CHAIR_BACKS = new Set(["Chair Back Pivot", "AG Back Pivot", "Cantilever Back Pivot"]);
+const groups = {};
+let ceilingLight = null, loaded = false;
+
+async function loadModel() {
+  const res = await fetch("room.json", { cache: "no-cache" }); // pick up a re-published model
+  if (!res.ok) throw new Error(`room.json: HTTP ${res.status}`);
+  const { data } = await res.json();
+  const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+  const glb = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+  return new Promise((resolve, reject) => new GLTFLoader().parse(glb, "", resolve, reject));
+}
+loadModel().then((gltf) => {
+  const root = gltf.scene;
+  root.traverse((o) => {
+    const u = o.userData || {};
+    if (u.opt || u.slotBase || u.hideWith) tagged.push(o);
+    if (u.side) wallNodes.push(o);
+    if (u.sidetable) sideTables.push(o);
+    if (u.module3) module3Nodes.push(o);
+    const part = DESK_PARTS.find(([re]) => re.test(o.name));
+    if (part) {
+      o.userData.deskPart = part[1]; o.userData.z0 = o.position.z; o.userData.sz0 = o.scale.z;
+      // The exported mesh isn't centred on its node, so stretch around the geometry's own centre
+      if (o.geometry) { o.geometry.computeBoundingBox(); const b = o.geometry.boundingBox; o.userData.gc = (b.min.z + b.max.z) / 2; }
+      deskParts.push(o);
+    }
+    if (CHAIR_BACKS.has(o.name.replace(/_/g, " "))) chairBacks.push(o);
+    if (BASE[o.name]) groups[o.name] = o;
+    if (u.light) {
+      const l = makeLight(u.light);
+      if (u.light === "ceiling") ceilingLight = l;
+      o.add(l);
+    }
+    if (o.isMesh) {
+      o.castShadow = true;
+      o.receiveShadow = true;
+      const m = o.material;
+      if (!m) return;
+      if (!materials.has(m.name)) materials.set(m.name, { mat: m, orig: { color: m.color.clone(), map: m.map, roughness: m.roughness, metalness: m.metalness } });
+      if (m.name === "Glass") { m.transparent = true; m.opacity = 0.18; m.transmission = 0; m.depthWrite = false; o.castShadow = false; }
+      if (m.name === "Reeded Glass") { m.transparent = true; m.opacity = 0.5; m.depthWrite = false; o.castShadow = false; }
+      if (m.name === "Window Film") { m.transparent = true; m.opacity = 0.6; m.depthWrite = false; o.castShadow = false; }
+      if (/Curtain|Lantern|Shoji/.test(m.name)) m.side = THREE.DoubleSide;
+    }
+  });
+  scene.add(root);
+  loaded = true;
+  document.getElementById("loading").hidden = true;
+  update(false);
+  setView(state.view || "doll", false);
+}).catch((err) => {
+  document.getElementById("loading").textContent = "The room model didn't load. Reload the page to try again.";
+  console.error(err);
+});
+
+// Layout: animate each group to its target transform
+let layoutTween = null;
+function layoutTargets(s) {
+  const L = LAYOUTS[s.layout];
+  const over = { ...L.groups };
+  if (s.layout === "C" && s.slots.wardrobe === "none") over.grp_long = [0.235, 1.03, 180];
+  const deskV = SLOT.desk.variants[s.slots.desk];
+  if (deskV.chairAt && deskV.chairAt[s.layout] && !slotFit(s, "desk", s.slots.desk)) over.grp_chair = deskV.chairAt[s.layout];
+  const out = {};
+  for (const [g, base] of Object.entries(BASE)) {
+    const [x, y, r] = over[g] || base;
+    out[g] = { pos: toThree(x, y, 0), rot: THREE.MathUtils.degToRad(r) };
+  }
+  return out;
+}
+function applyLayout(s, animate) {
+  const to = layoutTargets(s);
+  if (!animate || reduceMotion) {
+    for (const [g, t] of Object.entries(to)) if (groups[g]) { groups[g].position.copy(t.pos); groups[g].rotation.y = t.rot; }
+    layoutTween = null;
+    return;
+  }
+  const from = {};
+  for (const g of Object.keys(to)) if (groups[g]) from[g] = { pos: groups[g].position.clone(), rot: groups[g].rotation.y };
+  layoutTween = { from, to, t0: performance.now(), dur: 650 };
+}
+
+let comparing = false;
+function applyVisibility(s) {
+  const tags = activeTags(s);
+  for (const o of tagged) {
+    const u = o.userData;
+    let v = true;
+    if (u.opt) v = tags.has(u.opt);
+    if (u.slotBase) {
+      // The original piece shows when it's chosen, or when the chosen one doesn't fit
+      const cur = s.slots[u.slotBase];
+      v = v && (cur === Object.keys(SLOT[u.slotBase].variants)[0] || !!slotFit(s, u.slotBase, cur));
+    }
+    if (u.hideWith) v = v && !tags.has(u.hideWith);
+    o.visible = v;
+  }
+  for (const o of sideTables) if (sideTableHidden(s)) o.visible = false;
+  const dropModule3 = s.layout === "C" && s.slots.wardrobe !== "none";
+  for (const o of module3Nodes) o.visible = !dropModule3;
+  if (currentView === "seated") for (const o of chairBacks) o.visible = false;
+}
+function update(animate = true) {
+  syncPanel();
+  if (!loaded) return;
+  const s = comparing ? { ...TODAY, scene: state.scene } : state;
+  applyVisibility(s);
+  applyDeskLength(s);
+  // Materials: style first, then any paint/feature/add-on overrides
+  const mats = { ...STYLES[s.style].mats };
+  for (const sl of SLOTS) {
+    const v = sl.variants[s.slots[sl.id]];
+    if (v.mats && !slotFit(s, sl.id, s.slots[sl.id])) Object.assign(mats, v.mats);
+  }
+  for (const x of s.extras) if (XMATS[x] && !xFit(s, x)) Object.assign(mats, XMATS[x]);
+  applyMaterials(mats);
+  applyLayout(s, animate);
+  const sc = SCENES[s.scene];
+  if (ceilingLight) {
+    ceilingLight.color.set(sc.ceiling);
+    ceilingLight.intensity = (s.slots.light === "globe" ? 3 : 8) * sc.mul;
+  }
+  hemi.color.set(sc.hemi);
+  hemi.intensity = sc.hemiI;
+}
+document.getElementById("scenes").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-scene]");
+  if (b) { state.scene = b.dataset.scene; update(); }
+});
+
+// Hide the walls between the camera and the room (dollhouse cut-away)
+function updateCutaway() {
+  const p = camera.position;
+  const bx = p.x, by = -p.z, bz = p.y, m = 0.02;
+  const hide = { S: by < -m, N: by > D + m, W: bx < -m, E: bx > W + m, C: bz > H - 0.01 };
+  for (const o of wallNodes) o.visible = !hide[o.userData.side];
+}
+
+// ---------------------------------------------------------------- views
+const VIEWS = {
+  doll: { pos: [W + 2.6, 4.4, 2.4], target: [W / 2, 0.9, -D / 2], fov: 45, three: true },
+  photo: { pos: [2.20, 1.45, 1.40], target: [0.0, 1.55, 1.12], hfov: 100 },
+  door: { pos: [1.80, 0.55, 1.60], target: [1.85, 2.95, 0.95], hfov: 98 },
+  opposite: { pos: [0.95, 1.25, 1.55], target: [W, 0.95, 0.85], hfov: 95 },
+  // Eye level in the desk chair, wherever the layout puts it, looking at the desk
+  seated: (s) => {
+    const L = LAYOUTS[s.layout], dv = SLOT.desk.variants[s.slots.desk];
+    const at = (dv.chairAt && dv.chairAt[s.layout] && !slotFit(s, "desk", s.slots.desk)) ? dv.chairAt[s.layout] : L.chair;
+    const desk = [(L.desk[0] + L.desk[1]) / 2, (L.desk[2] + L.desk[3]) / 2];
+    const d = Math.hypot(desk[0] - at[0], desk[1] - at[1]) || 1;
+    // Eye about 120 cm up, a little ahead of the backrest, looking at the screen at the wall side of the desk
+    const u = [(desk[0] - at[0]) / d, (desk[1] - at[1]) / d];
+    return { pos: [at[0] + u[0] * 0.04, at[1] + u[1] * 0.04, 1.2], target: [desk[0] + u[0] * 0.2, desk[1] + u[1] * 0.2, 1.02], fov: 62 };
+  },
+  // Standing in the middle of the free floor, facing the window corner
+  standing: { pos: [1.45, 1.75, 1.63], target: [0.2, 0.4, 1.30], fov: 62 },
+  top: { pos: [W / 2, 8.5, -D / 2 + 0.001], target: [W / 2, 0, -D / 2], fov: 30, three: true },
+};
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function fovFor(v) {
+  if (!v.hfov) return v.fov;
+  const h = THREE.MathUtils.degToRad(v.hfov) / 2;
+  return Math.min(105, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(h) / camera.aspect)));
+}
+// Inside views turn the camera in place (drag to look around, scroll to zoom);
+// the dollhouse and plan views orbit around the room.
+const INSIDE = new Set(["photo", "door", "opposite", "seated", "standing"]);
+const hintEl = document.getElementById("hint");
+let lookMode = false;
+function setLookMode(on) {
+  lookMode = on;
+  controls.enableZoom = !on;
+  controls.enablePan = !on;
+  controls.rotateSpeed = on ? -0.35 : 1;
+  controls.minDistance = on ? 0.01 : 0.4; // the look pivot sits 5 cm ahead of the eye
+  controls.minPolarAngle = on ? 0.15 : 0;
+  controls.maxPolarAngle = on ? Math.PI - 0.15 : Math.PI * 0.49;
+  hintEl.textContent = on ? "Drag to look around · scroll to zoom" : "Drag to orbit · right-drag or two fingers to pan · scroll to zoom";
+}
+// Orbiting around a point 5 cm in front of the eye is the same as turning the head
+function lookTarget(pos, target) {
+  return pos.clone().add(target.clone().sub(pos).normalize().multiplyScalar(0.05));
+}
+canvas.addEventListener("wheel", (e) => {
+  if (!lookMode) return;
+  e.preventDefault();
+  camera.fov = THREE.MathUtils.clamp(camera.fov + e.deltaY * 0.04, 25, 105);
+  camera.updateProjectionMatrix();
+}, { passive: false });
+
+let tween = null, currentView = "doll";
+function setView(name, animate = true) {
+  currentView = name;
+  state.view = name;
+  if (loaded) applyVisibility(comparing ? { ...TODAY, scene: state.scene } : state);
+  persist();
+  const base = typeof VIEWS[name] === "function" ? VIEWS[name](state) : VIEWS[name];
+  const v = { ...base, ...((LAYOUTS[state.layout].views || {})[name] || {}) };
+  const inside = INSIDE.has(name);
+  document.querySelectorAll("#views button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === name)));
+  const pos = v.three ? new THREE.Vector3(...v.pos) : toThree(...v.pos);
+  const target = v.three ? new THREE.Vector3(...v.target) : toThree(...v.target);
+  const to = { pos, target, fov: fovFor(v), inside };
+  if (!inside) setLookMode(false);
+  if (!animate || reduceMotion) {
+    camera.position.copy(to.pos); controls.target.copy(inside ? lookTarget(to.pos, to.target) : to.target);
+    camera.fov = to.fov; camera.updateProjectionMatrix();
+    if (inside) setLookMode(true);
+    tween = null; return;
+  }
+  tween = { from: { pos: camera.position.clone(), target: controls.target.clone(), fov: camera.fov }, to, t0: performance.now(), dur: 700 };
+}
+document.getElementById("views").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-view]");
+  if (b) setView(b.dataset.view);
+});
+document.getElementById("layouts").addEventListener("click", () => {
+  if (currentView && INSIDE.has(currentView)) setView(currentView);
+});
+slotsEl.addEventListener("click", (e) => {
+  if (currentView === "seated" && e.target.closest('.chip[data-slot="desk"]')) setView("seated");
+});
+controls.addEventListener("start", () => {
+  if (tween && tween.to.inside) { controls.target.copy(lookTarget(tween.to.pos, tween.to.target)); setLookMode(true); }
+  tween = null;
+  if (lookMode) return;
+  currentView = null;
+  document.querySelectorAll("#views button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+});
+
+// Hold to compare with the room as it is today
+const cmp = document.getElementById("compare");
+const startCmp = (e) => { e.preventDefault(); comparing = true; cmp.classList.add("on"); update(false); };
+const endCmp = () => { if (!comparing) return; comparing = false; cmp.classList.remove("on"); update(false); };
+cmp.addEventListener("pointerdown", startCmp);
+["pointerup", "pointerleave", "pointercancel"].forEach((ev) => cmp.addEventListener(ev, endCmp));
+cmp.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) startCmp(e); });
+cmp.addEventListener("keyup", (e) => { if (e.key === " " || e.key === "Enter") endCmp(); });
+
+// ---------------------------------------------------------------- loop
+function resize() {
+  const r = canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / Math.max(1, r.height);
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(canvas.parentElement);
+resize();
+
+const ease = (t) => 1 - Math.pow(1 - t, 3);
+renderer.setAnimationLoop((now) => {
+  if (tween) {
+    const t = Math.min(1, (now - tween.t0) / tween.dur), k = ease(t);
+    camera.position.lerpVectors(tween.from.pos, tween.to.pos, k);
+    controls.target.lerpVectors(tween.from.target, tween.to.target, k);
+    camera.fov = tween.from.fov + (tween.to.fov - tween.from.fov) * k;
+    camera.updateProjectionMatrix();
+    if (t === 1) {
+      if (tween.to.inside) { controls.target.copy(lookTarget(tween.to.pos, tween.to.target)); setLookMode(true); }
+      tween = null;
+    }
+  }
+  if (layoutTween) {
+    const t = Math.min(1, (now - layoutTween.t0) / layoutTween.dur), k = ease(t);
+    for (const [g, f] of Object.entries(layoutTween.from)) {
+      const to = layoutTween.to[g];
+      groups[g].position.lerpVectors(f.pos, to.pos, k);
+      groups[g].rotation.y = f.rot + (to.rot - f.rot) * k;
+    }
+    if (t === 1) layoutTween = null;
+  }
+  controls.update();
+  updateCutaway();
+  renderer.render(scene, camera);
+});
+// Copy a link that reopens this exact setup
+document.getElementById("copy-link").addEventListener("click", async () => {
+  const url = shareUrl(), status = document.getElementById("copy-status"), input = document.getElementById("share-url");
+  input.value = url;
+  try {
+    await navigator.clipboard.writeText(url);
+    status.textContent = "Link copied";
+    input.hidden = true;
+  } catch {
+    status.textContent = "Copy the link below";
+    input.hidden = false;
+    input.focus();
+    input.select();
+  }
+});
+window.addEventListener("hashchange", () => {
+  const saved = decodeSetup(location.hash.slice(1));
+  if (!saved || encodeSetup(state) === location.hash.slice(1)) return;
+  Object.assign(state, saved);
+  update();
+  setView(state.view);
+});
+syncPanel();
+</script>
