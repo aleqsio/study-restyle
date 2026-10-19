@@ -126,6 +126,7 @@ M = {
     "green": material("Wall Green", "#5f8f78", rough=0.85),
     "white_wall": material("Wall White", "#e9e7e1", rough=0.85),
     "door_wall": material("Wall Door", "#e9e7e1", rough=0.85),
+    "east_wall": material("Wall East", "#e9e7e1", rough=0.85),
     "ceiling": material("Ceiling", "#6d9a84", rough=0.9),
     "concrete": material("Shaft", "#5f8f78", rough=0.85),
     "floor": wood_material("Oak Floor", "#b07a45", "#7f5126", scale=(1.0, 14.0, 1.0)),
@@ -170,7 +171,7 @@ cyl("Plafon Diffuser", W / 2, D / 2, H - 0.085, H - 0.08, 0.27, M["plafon_diffus
 # West wall (desk + wardrobe), full height
 box("Wall West", -T, 0, 0, D, 0, H, M["green"])
 # East wall (camera side), white like the door wall
-box("Wall East", W, W + T, 0, D, 0, H, M["white_wall"])
+box("Wall East", W, W + T, 0, D, 0, H, M["east_wall"])
 
 # South wall with window opening x 0.07..1.51, sill 0.85, head 2.40
 WIN_X0, WIN_X1, WIN_Z0, WIN_Z1 = 0.07, 1.51, 0.85, 2.40

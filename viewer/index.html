@@ -111,6 +111,11 @@ h1 { font: 600 22px/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
 .insp-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .insp-head h2 { font: 600 15px var(--font-display); text-transform: uppercase; letter-spacing: .1em; margin: 0; }
 .insp-head span { font-size: 12px; color: var(--muted); }
+.colrow { display: grid; grid-template-columns: minmax(0, 1fr) 44px 64px; gap: 8px; align-items: center; padding: 3px 6px; }
+.colrow label { font: 500 13px/1.3 var(--font-body); }
+.colrow input[type="color"] { width: 44px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
+.colrow .price { font: 400 11.5px var(--font-mono); color: var(--muted); text-align: right; }
+.colrow .btn { padding: 6px 8px; }
 .panel { overflow-y: auto; padding-block: 14px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); display: grid; align-content: start; gap: 20px; flex: 1; min-height: 0; }
 
 .block { display: grid; gap: 9px; }
@@ -319,6 +324,17 @@ const LIGHTS = {
   track: { name: "Track spots", lo: 600, hi: 1500 },
   rattan: { name: "Rattan shade", lo: 200, hi: 600 },
 };
+// Wall colours you can set by hand; they win over the style and paint. Order only ever grows (links).
+const WALLS = {
+  west: { name: "Wardrobe wall", mat: "Wall Green" },
+  south: { name: "Window wall", mat: "Wall White" },
+  east: { name: "Wall opposite the desk", mat: "Wall East" },
+  north: { name: "Door wall", mat: "Wall Door" },
+  shaft: { name: "Shaft column", mat: "Shaft" },
+  ceiling: { name: "Ceiling", mat: "Ceiling" },
+};
+const WALL_KEYS = Object.keys(WALLS);
+const WALL_PAINT = [150, 400]; // rough cost of repainting one surface yourself
 // Things fixed to the room (window, radiator, door, ceiling, floor)
 const ROOM_ADDONS = {
   pelmet: { name: "Wooden pelmet over the blind", lo: 600, hi: 1500 },
@@ -542,7 +558,7 @@ function inst(p, o = {}, a = []) {
   const adds = new Set(a.filter((k) => f && f.addons && k in f.addons));
   return { id: nextId++, p, x: t ? t.home[0] : 1.4, y: t ? t.home[1] : 1.6, r: 0, z: 0, o: opts, a: adds };
 }
-const state = { style: "green", scene: "everyday", view: "doll", paint: "today", finish: "none", light: "today", room: new Set(), objects: [] };
+const state = { style: "green", scene: "everyday", view: "doll", paint: "today", finish: "none", light: "today", room: new Set(), colors: {}, objects: [] };
 
 function rotateAbout([x, y], [px, py], rdeg) {
   const c = Math.cos(deg(rdeg)), s = Math.sin(deg(rdeg));
@@ -569,9 +585,9 @@ function arrange(objs, layout) {
 }
 // Turn one of the earlier option sets into a scene of objects
 function fromPreset(P, layout = "A") {
-  if (P.empty) return { paint: "today", light: "today", finish: "none", room: new Set(), objects: [] };
+  if (P.empty) return { paint: "today", light: "today", finish: "none", room: new Set(), colors: {}, objects: [] };
   const s = P.slots, x = new Set(P.x || []);
-  const out = { paint: s.paint, light: s.light, finish: s.wf === "grass" || s.wf === "rail" ? s.wf : "none", room: new Set([...x].filter((k) => k in ROOM_ADDONS)), objects: [] };
+  const out = { paint: s.paint, light: s.light, finish: s.wf === "grass" || s.wf === "rail" ? s.wf : "none", room: new Set([...x].filter((k) => k in ROOM_ADDONS)), colors: {}, objects: [] };
   const add = (p, o, a) => { if (TPL[p]) out.objects.push(inst(p, o, a)); };
   const addTag = (tag) => { for (const p of PROTO_IDS) if (p === tag || p.startsWith(tag + "/")) add(p); };
   let top = s.desk, len = s.desklen;
@@ -606,6 +622,8 @@ function encode(s) {
   const c = (keys, v) => Math.max(0, keys.indexOf(v)).toString(36);
   let t = "r2" + c(STYLE_KEYS, s.style) + c(SCENE_KEYS, s.scene) + c(VIEW_KEYS, s.view) + c(PAINT_KEYS, s.paint) + c(FINISH_KEYS, s.finish) + c(LIGHT_KEYS, s.light);
   t += "-" + bits36(ROOM_KEYS, s.room);
+  const cols = WALL_KEYS.filter((k) => s.colors && s.colors[k]);
+  if (cols.length) t += "~cc" + cols.map((k) => `.${WALL_KEYS.indexOf(k).toString(36)}${s.colors[k].slice(1)}`).join("");
   for (const o of s.objects) {
     const f = FAMILIES[o.p];
     const opts = f ? f.options.map((op) => Math.max(0, Object.keys(op.values).indexOf(o.o[op.key])).toString(36)).join("") + "-" + bits36(Object.keys(f.addons || {}), o.a) : "";
@@ -619,8 +637,12 @@ function decode(tok) {
   if (!m) return null;
   const at = (i, keys) => keys[parseInt(m[1][i], 36)];
   const s = { style: at(0, STYLE_KEYS) || "green", scene: at(1, SCENE_KEYS) || "everyday", view: at(2, VIEW_KEYS) || "doll",
-    paint: at(3, PAINT_KEYS) || "today", finish: at(4, FINISH_KEYS) || "none", light: at(5, LIGHT_KEYS) || "today", room: unbits36(ROOM_KEYS, m[2]), objects: [] };
+    paint: at(3, PAINT_KEYS) || "today", finish: at(4, FINISH_KEYS) || "none", light: at(5, LIGHT_KEYS) || "today", room: unbits36(ROOM_KEYS, m[2]), colors: {}, objects: [] };
   for (const e of objs) {
+    if (e.startsWith("cc.")) {
+      for (const c of e.split(".").slice(1)) { const k = WALL_KEYS[parseInt(c[0], 36)]; if (k && /^[0-9a-f]{6}$/.test(c.slice(1))) s.colors[k] = "#" + c.slice(1); }
+      continue;
+    }
     const [code, x, y, r, z, opts = ""] = e.split(".");
     const p = PROTO_OF_CODE[code];
     if (!p) continue;
@@ -772,7 +794,7 @@ const materials = new Map(); // name -> { mat, orig }
 function applyMaterials(overrides) {
   for (const [mname, { mat, orig }] of materials) {
     let spec = overrides[mname];
-    if (!spec && mname === "Wall Door") spec = overrides["Wall White"];
+    if (!spec && (mname === "Wall Door" || mname === "Wall East")) spec = overrides["Wall White"];
     spec = spec || ORIGINAL_TEX[mname] || null;
     if (spec && (spec.wood || spec.conc || spec.peg)) {
       mat.map = texFor(spec);
@@ -973,6 +995,21 @@ function renderObjects(s) {
   const seatedChair = currentView === "seated" ? s.objects.find((o) => o.p === "chair") : null;
   if (seatedChair) instNodes.get(seatedChair.id)?.traverse((n) => { if (n.userData.chairBack) n.visible = false; });
 }
+// What a wall looks like before any hand-picked colour, so recolouring the window wall
+// doesn't drag the door and east walls along with it
+let lastMats = {};
+function styleSpec(s, name) {
+  const m = { ...STYLES[s.style].mats, ...(PAINT[s.paint].mats || {}), ...(FINISH[s.finish].mats || {}) };
+  return m[name] || (name === "Wall Door" || name === "Wall East" ? m["Wall White"] : null) || { c: "#" + (materials.get(name)?.orig.color.getHexString() || "e9e7e1") };
+}
+function wallHex(name) {
+  const spec = lastMats[name] || ((name === "Wall Door" || name === "Wall East") && lastMats["Wall White"]) || null;
+  if (spec && spec.c) return spec.c;
+  if (spec && spec.conc) return spec.conc[0];
+  if (spec && spec.wood) return spec.wood[0];
+  const m = materials.get(name);
+  return m ? "#" + m.orig.color.getHexString() : "#e9e7e1";
+}
 function applyRoom(s) {
   const tags = new Set([`light:${s.light}`, `paint:${s.paint}`, ...(s.finish === "rail" ? ["wf:rail"] : []), ...[...s.room].map((k) => `x:${k}`)]);
   for (const n of roomTagged) {
@@ -985,6 +1022,12 @@ function applyRoom(s) {
   }
   const mats = { ...STYLES[s.style].mats, ...(PAINT[s.paint].mats || {}), ...(FINISH[s.finish].mats || {}) };
   for (const k of s.room) Object.assign(mats, ROOM_ADDONS[k].mats || {});
+  for (const [k, c] of Object.entries(s.colors || {})) {
+    mats[WALLS[k].mat] = { c };
+    if (k === "south" && !(s.colors || {}).east) mats["Wall East"] = mats["Wall East"] || styleSpec(s, "Wall East");
+    if (k === "south" && !(s.colors || {}).north) mats["Wall Door"] = mats["Wall Door"] || styleSpec(s, "Wall Door");
+  }
+  lastMats = mats;
   applyMaterials(mats);
   const sc = SCENES[s.scene];
   if (ceilingLight) { ceilingLight.color.set(sc.ceiling); ceilingLight.intensity = (s.light === "globe" ? 3 : 8) * sc.mul; }
@@ -1026,12 +1069,13 @@ document.getElementById("undo").addEventListener("click", undo);
 document.getElementById("redo").addEventListener("click", redo);
 
 function update(animate = true) {
-  syncPanels();
-  if (!loaded) return;
-  const s = comparing ? { ...TODAY_STATE, scene: state.scene } : state;
-  renderObjects(s);
-  applyRoom(s);
-  persist();
+  if (loaded) {
+    const s = comparing ? { ...TODAY_STATE, scene: state.scene } : state;
+    renderObjects(s);
+    applyRoom(s);
+  }
+  syncPanels(); // after the room, so the wall-colour pickers show the current colours
+  if (loaded) persist();
 }
 
 // ================================================================ panels
@@ -1046,6 +1090,8 @@ function totals() {
   let lo = STYLES[state.style].lo + PAINT[state.paint].lo + FINISH[state.finish].lo + LIGHTS[state.light].lo;
   let hi = STYLES[state.style].hi + PAINT[state.paint].hi + FINISH[state.finish].hi + LIGHTS[state.light].hi;
   for (const k of state.room) { lo += ROOM_ADDONS[k].lo; hi += ROOM_ADDONS[k].hi; }
+  const painted = Object.keys(state.colors || {}).length;
+  lo += painted * WALL_PAINT[0]; hi += painted * WALL_PAINT[1];
   for (const o of state.objects) { const [a, b] = priceOf(o); lo += a; hi += b; }
   return [lo, hi];
 }
@@ -1066,6 +1112,11 @@ function renderRoomSettings() {
       <p class="note">${esc(STYLES[state.style].note)}</p></section>
     <section class="block"><div class="block-head"><h2>Paint</h2></div>${chipRow("paint", Object.entries(PAINT), state.paint)}
       <p class="row-label">Wall finish</p>${chipRow("finish", Object.entries(FINISH), state.finish)}</section>
+    <section class="block"><div class="block-head"><h2>Wall colours</h2><span>override the style and paint</span></div>
+      <div class="xlist">${WALL_KEYS.map((k) => `<div class="colrow"><label for="col-${k}">${WALLS[k].name}</label>
+        <input type="color" id="col-${k}" data-color="${k}" value="${(state.colors[k] || wallHex(WALLS[k].mat)).toLowerCase()}">
+        ${state.colors[k] ? `<button class="btn" data-uncolor="${k}">Reset</button>` : `<span class="price">as styled</span>`}</div>`).join("")}</div>
+      <p class="note">Each hand-picked colour adds ${fmt(WALL_PAINT[0])}–${fmt(WALL_PAINT[1])} zł for paint.</p></section>
     <section class="block"><div class="block-head"><h2>Ceiling light</h2></div>${chipRow("light", Object.entries(LIGHTS), state.light)}</section>
     <section class="block"><div class="block-head"><h2>Window, radiator, door</h2><span>${[...state.room].length} on</span></div>
       <div class="xlist">${Object.entries(ROOM_ADDONS).map(([k, v]) => `<label class="xrow"><input type="checkbox" data-room="${k}" ${state.room.has(k) ? "checked" : ""}>
@@ -1120,6 +1171,7 @@ function onPanelClick(e) {
   if (d.light) { state.light = d.light; return update(); }
   if (d.room && b.tagName === "INPUT") { b.checked ? state.room.add(d.room) : state.room.delete(d.room); return update(); }
   if (d.select) { const x = state.objects.find((q) => q.id === Number(d.select)); if (x) select(x, true); return; }
+  if (d.uncolor) { delete state.colors[d.uncolor]; return update(); }
   if (d.act === "back") return select(null);
   if (!o) return;
   for (const [k, v] of Object.entries(d)) {
@@ -1138,6 +1190,18 @@ function onPanelClick(e) {
   if (d.act === "del") return removeObj(o);
 }
 inspectorEl.addEventListener("click", onPanelClick);
+inspectorEl.addEventListener("input", (e) => {
+  const k = e.target.dataset && e.target.dataset.color;
+  if (!k) return;
+  state.colors[k] = e.target.value;
+  if (loaded) applyRoom(comparing ? { ...TODAY_STATE, scene: state.scene } : state);
+});
+inspectorEl.addEventListener("change", (e) => {
+  const k = e.target.dataset && e.target.dataset.color;
+  if (!k) return;
+  state.colors[k] = e.target.value;
+  update();
+});
 objectsEl.addEventListener("click", onPanelClick);
 
 // ================================================================ gallery
