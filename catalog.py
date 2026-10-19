@@ -377,8 +377,10 @@ for zi in range(3):
         rods.append(rod("Wire Rim B", (sx0, sy1, z), (sx1, sy1, z), wr * 1.6, chrome, verts=6))
         for xs in (sx0, (sx0 + sx1) / 2, sx1):
             rods.append(rod("Wire Rim S", (xs, sy0, z), (xs, sy1, z), wr * 1.6, chrome, verts=6))
+for k in range(m + 1):  # open wire top, no board
+    x = sx0 + k * (sx1 - sx0) / m
+    rods.append(rod("Wire Top", (x, sy0, levels[3] - 0.004), (x, sy1, levels[3] - 0.004), wr, chrome, verts=5))
 join(rods, "Wire Shelf Frame")
-box("Wire Shelf Top", sx0 - 0.01, sx1 + 0.01, sy0 - 0.005, sy1, levels[3], levels[3] + 0.015, M["black"], bevel=0.003)
 
 item("donut lamp")
 donut = mat("Donut Glass", "#ff7a1a", rough=0.15, emit="#ff6a00", emit_strength=0.9)
@@ -387,7 +389,7 @@ torus("Donut Lamp Glass", (lx, ly, lz + 0.045), 0.085, 0.05, donut, scale=(1, 1,
 light_anchor("Light Donut", (lx, ly, lz + 0.07), "donut")
 
 item("u candle holder")
-ux, uy, uz = 2.45, D - 0.19, levels[3] + 0.015
+ux, uy, uz = 2.45, D - 0.19, levels[3] - 0.002
 cyl("U Holder Foot", ux, uy, uz, uz + 0.01, 0.035, chrome, verts=20)
 pts = [(ux + 0.045 * math.cos(a), uy, uz + 0.06 - 0.045 * math.sin(a)) for a in [math.pi * k / 6 for k in range(7)]]
 for k in range(6):
@@ -398,8 +400,36 @@ for k, sx in enumerate((-0.045, 0.045)):
     cyl(f"U Holder Candle {k}", ux + sx, uy, uz + 0.17, uz + 0.36, 0.009, M["p_cream"], verts=10)
 
 item("chrome vase")
-cyl("Chrome Vase", 2.10, D - 0.17, levels[3] + 0.015, levels[3] + 0.31, 0.055, chrome, verts=24)
+cyl("Chrome Vase", 2.10, D - 0.17, levels[3] - 0.002, levels[3] + 0.29, 0.055, chrome, verts=24)
 item(None)
+
+# IKEA HYLLIS (60x27x74 cm, galvanised steel, three shelves) with oak inserts and one oak top
+# running over 1, 2 or 3 units side by side along the wall opposite the desk
+galv = mat("Galvanised Steel", "#b7bbbd", rough=0.35, metal=0.45)
+HW, HD, HH, HP = 0.60, 0.27, 0.74, 0.022  # unit width, depth, height, corner post
+for n in (1, 2, 3):
+    use_option(f"piece:hyllis{n}")
+    hx1 = W - 0.01
+    hx0 = hx1 - HD
+    run = n * HW
+    hy0 = 1.05 - run / 2
+    for u in range(n):
+        uy0, uy1 = hy0 + u * HW, hy0 + (u + 1) * HW
+        for px in (hx0, hx1 - HP):
+            for py in (uy0, uy1 - HP):
+                box(f"Hyllis {n} Post {u}", px, px + HP, py, py + HP, 0, HH, galv)
+        for z in (0.07, 0.40, HH - 0.02):
+            box(f"Hyllis {n} Shelf {u}", hx0, hx1, uy0 + 0.002, uy1 - 0.002, z, z + 0.02, galv)
+            if z < 0.5:  # oak boards on the lower two shelves, as in the photo
+                box(f"Hyllis {n} Board {u}", hx0 + 0.008, hx1 - 0.008, uy0 + 0.01, uy1 - 0.01, z + 0.02, z + 0.032, M["oak"])
+    box(f"Hyllis {n} Top", hx0 - 0.02, hx1, hy0 - 0.01, hy0 + run + 0.01, HH, HH + 0.028, M["oak"], bevel=0.003)
+
+use_option("piece:globelamp")  # opal glass globe lamp, sits on a bottom shelf
+opal = mat("Globe Opal", "#f6eee2", rough=0.4, emit="#ffd9a6", emit_strength=1.2)
+gx, gy = W - 0.145, 0.95
+cyl("Globe Lamp Base", gx, gy, 0.09, 0.105, 0.07, mat("Clear Acrylic", "#e8eef0", rough=0.1), verts=24)
+sphere("Globe Lamp Glass", (gx, gy, 0.105 + 0.12), 0.12, opal)
+light_anchor("Light Globe Lamp", (gx, gy, 0.225), "globe")
 
 # ================================================================ wall features
 use_option("wf:slats")  # 5 oak slats behind the desk (moves with the desk wall)

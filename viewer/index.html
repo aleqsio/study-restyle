@@ -466,6 +466,10 @@ const SINGLES = {
   "art:gallery": ["Gallery wall", "Wall decor", 300, 900],
   "art:clock": ["Sunburst clock", "Wall decor", 300, 900],
   "art:textile": ["Woven wall hanging", "Wall decor", 500, 1500],
+  "piece:hyllis1": ["HYLLIS ×1 with oak top, 60 cm", "Storage", 250, 600],
+  "piece:hyllis2": ["HYLLIS ×2 with oak top, 120 cm", "Storage", 450, 1000],
+  "piece:hyllis3": ["HYLLIS ×3 with oak top, 180 cm", "Storage", 650, 1400],
+  "piece:globelamp": ["Opal globe table lamp", "Lighting", 200, 700],
   "piece:wire/wire shelf": ["Chrome wire cube shelf", "Storage", 1500, 9000],
   "piece:wire/donut lamp": ["Orange glass donut lamp", "Lighting", 300, 1200],
   "piece:wire/u candle holder": ["Chrome U candle holder", "Small things", 80, 250],
@@ -947,6 +951,7 @@ function makeLight(kind) {
     case "uplight": return new THREE.PointLight(0xffd8a8, 1.5, 0, 2);
     case "bias": return new THREE.PointLight(0xffc890, 0.6, 0, 2);
     case "donut": return new THREE.PointLight(0xff8a30, 1.4, 0, 2);
+    case "globe": return new THREE.PointLight(0xffd8a8, 1.2, 0, 2);
     default: return new THREE.PointLight(0xffd2a0, 1, 0, 2);
   }
 }
@@ -1072,7 +1077,7 @@ function makeNode(o) {
   return node;
 }
 // Light colour: the lamp's light and its glowing shade or bulb follow one colour
-const GLOW = new Set(["Bulb", "Bias Glow", "Mushroom Lamp", "Linen Shade", "Paper Lantern", "Opal Glass", "Plafon Diffuser", "Night Glow", "Grow Glow", "Donut Glass"]);
+const GLOW = new Set(["Bulb", "Bias Glow", "Mushroom Lamp", "Linen Shade", "Paper Lantern", "Opal Glass", "Plafon Diffuser", "Night Glow", "Grow Glow", "Donut Glass", "Globe Opal"]);
 const sharedMat = new WeakMap(); // mesh -> the shared material it had before tinting
 function tintLights(root, hex) {
   root.traverse((n) => {
