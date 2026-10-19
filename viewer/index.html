@@ -848,6 +848,9 @@ loadModel().then((gltf) => {
   root.traverse((o) => {
     const u = o.userData || {};
     if (u.opt || u.slotBase || u.hideWith) roomTagged.push(o);
+    // Ceiling fixtures hang around the shadow-casting ceiling light; letting them cast
+    // would throw a big disc of shadow on the floor (lantern, layered shades, plafon)
+    if (o.isMesh && (String(u.opt || "").startsWith("light:") || u.slotBase === "light")) o.castShadow = false;
     if (u.side) wallNodes.push(o);
   });
   scene.add(root);
