@@ -466,6 +466,10 @@ const SINGLES = {
   "art:gallery": ["Gallery wall", "Wall decor", 300, 900],
   "art:clock": ["Sunburst clock", "Wall decor", 300, 900],
   "art:textile": ["Woven wall hanging", "Wall decor", 500, 1500],
+  "piece:wire/wire shelf": ["Chrome wire cube shelf", "Storage", 1500, 9000],
+  "piece:wire/donut lamp": ["Orange glass donut lamp", "Lighting", 300, 1200],
+  "piece:wire/u candle holder": ["Chrome U candle holder", "Small things", 80, 250],
+  "piece:wire/chrome vase": ["Chrome cylinder vase", "Small things", 100, 400],
   "art:mcm/green gradient": ["Gradient in the wall green", "Paintings", 150, 450],
   "art:mcm/mauve gradient": ["Gradient in the wardrobe mauve", "Paintings", 150, 450],
   "art:mcm/green into mauve": ["Green into mauve gradient", "Paintings", 250, 700],
@@ -942,6 +946,7 @@ function makeLight(kind) {
     case "sconce": return new THREE.PointLight(0xffcf96, 1.0, 0, 2);
     case "uplight": return new THREE.PointLight(0xffd8a8, 1.5, 0, 2);
     case "bias": return new THREE.PointLight(0xffc890, 0.6, 0, 2);
+    case "donut": return new THREE.PointLight(0xff8a30, 1.4, 0, 2);
     default: return new THREE.PointLight(0xffd2a0, 1, 0, 2);
   }
 }
@@ -1067,7 +1072,7 @@ function makeNode(o) {
   return node;
 }
 // Light colour: the lamp's light and its glowing shade or bulb follow one colour
-const GLOW = new Set(["Bulb", "Bias Glow", "Mushroom Lamp", "Linen Shade", "Paper Lantern", "Opal Glass", "Plafon Diffuser", "Night Glow", "Grow Glow"]);
+const GLOW = new Set(["Bulb", "Bias Glow", "Mushroom Lamp", "Linen Shade", "Paper Lantern", "Opal Glass", "Plafon Diffuser", "Night Glow", "Grow Glow", "Donut Glass"]);
 const sharedMat = new WeakMap(); // mesh -> the shared material it had before tinting
 function tintLights(root, hex) {
   root.traverse((n) => {
@@ -1282,7 +1287,7 @@ function renderWallSettings(k) {
       <div class="chips">${WALL_SWATCHES.map(([n, c]) => `<button class="chip" data-setcolor="${c}" title="${c}"><i class="dot" style="background:${c}"></i>${n}</button>`).join("")}</div>
       <p class="note">Click another wall to paint that one, or empty floor to go back.</p></section>`;
 }
-const WALL_SWATCHES = [["Warm white", "#efe9df"], ["Sage", "#9aa98c"], ["Forest", "#3f5a45"], ["Mustard", "#c9a24a"], ["Terracotta", "#b8674a"], ["Teak", "#8a5a3b"], ["Dusty blue", "#7d93a6"], ["Charcoal", "#3b3a38"]];
+const WALL_SWATCHES = [["Today's green", "#5f8f78"], ["Wardrobe mauve", "#8a5459"], ["Warm white", "#efe9df"], ["Sage", "#9aa98c"], ["Forest", "#3f5a45"], ["Mustard", "#c9a24a"], ["Terracotta", "#b8674a"], ["Teak", "#8a5a3b"], ["Dusty blue", "#7d93a6"], ["Charcoal", "#3b3a38"]];
 function lampHex(o) {
   let hex = null;
   instNodes.get(o.id)?.traverse((n) => { if (!hex && n.isLight && n.userData.baseHex !== undefined) hex = "#" + new THREE.Color(n.userData.baseHex).getHexString(); });
@@ -1312,7 +1317,7 @@ function renderObjectSettings(o) {
   html += `<section class="block"><p class="row-label">Position</p><div class="actions">
     ${t.mount === "floor" ? `<button class="btn" data-turn="-15">⟲ 15°</button><button class="btn" data-turn="15">⟳ 15°</button><button class="btn" data-turn="90">⟳ 90°</button>` : ""}
     <button class="btn" data-act="home">Back to its usual spot</button></div>
-    <p class="note">${t.mount === "floor" ? "Drag the arrows to slide it, the ring to turn it." : "Drag the arrows to slide it along the wall or up and down. Drag it across the room or round a corner to hang it on another wall."}</p></section>
+    <p class="note">${t.mount === "floor" ? "Drag the arrows to slide it or lift it, the ring to turn it." : "Drag the arrows to slide it along the wall or up and down. Drag it across the room or round a corner to hang it on another wall."}</p></section>
     <section class="block"><div class="actions"><button class="btn" data-act="dup">Duplicate</button><button class="btn danger" data-act="del">Remove from the room</button></div></section>`;
   el.innerHTML = html;
 }
@@ -1551,10 +1556,11 @@ function select(o, openTab = false) {
   if (node) {
     document.getElementById("piece-name").textContent = infoOf(o.p).name;
     const wall = TPL[o.p].mount === "wall";
-    moveGizmo.attach(node);
-    moveGizmo.showY = wall;
+    syncAnchor(node);
+    moveGizmo.attach(gizmoAnchor);
+    moveGizmo.showY = true; // anything can be lifted: a lamp onto a shelf, a plant onto a sill
     moveGizmo.showX = moveGizmo.showZ = true; // wall pieces: drag across the room to move to another wall
-    if (wall) turnGizmo.detach(); else turnGizmo.attach(node);
+    if (wall) turnGizmo.detach(); else turnGizmo.attach(gizmoAnchor);
     pieceBar.querySelectorAll("[data-rot]").forEach((b) => { b.hidden = wall; });
     if (openTab) inspectorEl.scrollTop = 0;
   } else { moveGizmo.detach(); turnGizmo.detach(); }
@@ -1575,7 +1581,17 @@ function updateSelBox() {
   selBox.makeEmpty();
   node.updateWorldMatrix(true, true);
   node.traverseVisible((m) => { if (m.isMesh) selBox.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld)); });
+  if (!moveGizmo.dragging && !turnGizmo.dragging) syncAnchor(node, false);
 }
+// The gizmos sit on a stand-in at the middle of the piece, not on its floor or wall pivot
+const gizmoAnchor = new THREE.Object3D();
+const yawOf = (o) => new THREE.Euler().setFromQuaternion(o.quaternion, "YXZ").y;
+function syncAnchor(node, measure = true) {
+  if (measure) updateSelBox();
+  if (selBox.isEmpty()) gizmoAnchor.position.copy(node.position); else selBox.getCenter(gizmoAnchor.position);
+  gizmoAnchor.rotation.set(0, yawOf(node), 0);
+}
+let dragStart = null; // { offset, anchorYaw, nodeYaw } when a drag begins
 // Which wall a wall piece hangs on, from the way it faces
 const wallSide = (o) => Object.keys(FACING_ANGLE).find((k) => ((FACING_ANGLE[k] - FACING_ANGLE[TPL[o.p].facing || "W"] - o.r) % 360 + 360) % 360 === 0) || null;
 let dragSide = null;
@@ -1585,17 +1601,26 @@ moveGizmo.setMode("translate"); moveGizmo.setSpace("world"); moveGizmo.setSize(0
 const turnGizmo = new TransformControls(camera, canvas);
 turnGizmo.setMode("rotate"); turnGizmo.setSize(1.05); turnGizmo.setRotationSnap(deg(5));
 turnGizmo.showX = turnGizmo.showZ = false; turnGizmo.showY = true;
-scene.add(moveGizmo, turnGizmo);
+scene.add(moveGizmo, turnGizmo, gizmoAnchor);
 for (const g of [moveGizmo, turnGizmo]) {
   g.addEventListener("dragging-changed", (e) => {
     controls.enabled = !e.value;
-    if (e.value) { const o = selected && state.objects.find((x) => x.id === selected.id); dragSide = o ? wallSide(o) : null; }
+    for (const other of [moveGizmo, turnGizmo]) if (other !== g) other.enabled = !e.value; // one gizmo per drag
+    if (e.value) {
+      const o = selected && state.objects.find((x) => x.id === selected.id), node = o && instNodes.get(o.id);
+      dragSide = o ? wallSide(o) : null;
+      dragStart = node && { offset: node.position.clone().sub(gizmoAnchor.position), anchorYaw: yawOf(gizmoAnchor), nodeYaw: yawOf(node) };
+    } else dragStart = null;
     if (!e.value) update();
   });
   g.addEventListener("objectChange", () => {
     const o = selected && state.objects.find((x) => x.id === selected.id);
     const node = o && instNodes.get(o.id);
-    if (!node) return;
+    if (!node || !dragStart) return;
+    // Carry the stand-in's move and turn over to the piece, turning about the piece's middle
+    const turn = yawOf(gizmoAnchor) - dragStart.anchorYaw;
+    node.position.copy(gizmoAnchor.position).add(dragStart.offset.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), turn));
+    node.rotation.set(0, dragStart.nodeYaw + turn, 0);
     if (TPL[o.p].mount === "wall") {
       // Always snapped flat to a wall, facing into the room. Dragged past the end of its wall it
       // wraps round the corner onto the next one; dragged across the room it jumps to the nearest wall.
@@ -1616,7 +1641,8 @@ for (const g of [moveGizmo, turnGizmo]) {
       node.rotation.set(0, deg(o.r), 0);
       o.z = node.position.y;
     } else {
-      node.position.y = 0; // stay on the floor
+      node.position.y = Math.max(0, node.position.y); // never below the floor
+      o.z = node.position.y;
       o.r = Math.round(THREE.MathUtils.radToDeg(new THREE.Euler().setFromQuaternion(node.quaternion, "YXZ").y));
     }
     o.x = node.position.x; o.y = -node.position.z;

@@ -341,6 +341,66 @@ for key, it, yc, zc, w, h, fr in (
     box(f"Painting {key} Canvas", W - 0.032, W - 0.03, yc - w / 2, yc + w / 2, zc - h / 2, zc + h / 2, mat(f"Painting {key}", "#ffffff", rough=0.9))
 item(None)
 
+use_option("piece:wire")  # chrome wire cube shelf (Panton Wire style) with a donut lamp and chrome bits
+chrome = mat("Chrome Wire", "#e4e7ea", rough=0.2, metal=0.45)
+
+
+def join(objs, name):
+    """One mesh instead of hundreds of wire rods."""
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.join()
+    objs[0].name = name
+    return objs[0]
+
+
+item("wire shelf")
+sx0, sx1, sy0, sy1, cube, wr = 1.95, 2.65, D - 0.36, D - 0.01, 0.35, 0.0022
+levels = [k * cube for k in range(4)]
+rods = []
+for zi in range(3):
+    zb, zt = levels[zi] + 0.004, levels[zi + 1] - 0.004
+    n = int(round((sy1 - sy0) / 0.025))
+    for xs in (sx0, (sx0 + sx1) / 2, sx1):  # side walls of the cubes: vertical wires
+        for k in range(n + 1):
+            y = sy0 + k * (sy1 - sy0) / n
+            rods.append(rod("Wire Side", (xs, y, zb), (xs, y, zt), wr, chrome, verts=5))
+    m = int(round((sx1 - sx0) / 0.025))
+    for k in range(m + 1):
+        x = sx0 + k * (sx1 - sx0) / m
+        rods.append(rod("Wire Back", (x, sy1, zb), (x, sy1, zt), wr, chrome, verts=5))
+        rods.append(rod("Wire Floor", (x, sy0, zb), (x, sy1, zb), wr, chrome, verts=5))
+    for z in (zb, zt):  # the loop round each tier
+        rods.append(rod("Wire Rim F", (sx0, sy0, z), (sx1, sy0, z), wr * 1.6, chrome, verts=6))
+        rods.append(rod("Wire Rim B", (sx0, sy1, z), (sx1, sy1, z), wr * 1.6, chrome, verts=6))
+        for xs in (sx0, (sx0 + sx1) / 2, sx1):
+            rods.append(rod("Wire Rim S", (xs, sy0, z), (xs, sy1, z), wr * 1.6, chrome, verts=6))
+join(rods, "Wire Shelf Frame")
+box("Wire Shelf Top", sx0 - 0.01, sx1 + 0.01, sy0 - 0.005, sy1, levels[3], levels[3] + 0.015, M["black"], bevel=0.003)
+
+item("donut lamp")
+donut = mat("Donut Glass", "#ff7a1a", rough=0.15, emit="#ff6a00", emit_strength=0.9)
+lx, ly, lz = 2.40, D - 0.19, cube + 0.004
+torus("Donut Lamp Glass", (lx, ly, lz + 0.045), 0.085, 0.05, donut, scale=(1, 1, 0.85))
+light_anchor("Light Donut", (lx, ly, lz + 0.07), "donut")
+
+item("u candle holder")
+ux, uy, uz = 2.45, D - 0.19, levels[3] + 0.015
+cyl("U Holder Foot", ux, uy, uz, uz + 0.01, 0.035, chrome, verts=20)
+pts = [(ux + 0.045 * math.cos(a), uy, uz + 0.06 - 0.045 * math.sin(a)) for a in [math.pi * k / 6 for k in range(7)]]
+for k in range(6):
+    rod(f"U Holder Bend {k}", pts[k], pts[k + 1], 0.009, chrome, verts=8)
+rod("U Holder Stem", (ux, uy, uz + 0.01), (ux, uy, uz + 0.015), 0.012, chrome, verts=8)
+for k, sx in enumerate((-0.045, 0.045)):
+    rod(f"U Holder Arm {k}", (ux + sx, uy, uz + 0.06), (ux + sx, uy, uz + 0.17), 0.009, chrome, verts=8)
+    cyl(f"U Holder Candle {k}", ux + sx, uy, uz + 0.17, uz + 0.36, 0.009, M["p_cream"], verts=10)
+
+item("chrome vase")
+cyl("Chrome Vase", 2.10, D - 0.17, levels[3] + 0.015, levels[3] + 0.31, 0.055, chrome, verts=24)
+item(None)
+
 # ================================================================ wall features
 use_option("wf:slats")  # 5 oak slats behind the desk (moves with the desk wall)
 box("Wallfeat Slat Felt", 0.0, 0.004, 0.0, 1.64, 0.0, H, mat("Slat Felt", "#1e1e1e", rough=1.0))
