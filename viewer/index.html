@@ -557,9 +557,9 @@ function arrange(objs, layout) {
 }
 // Turn one of the earlier option sets into a scene of objects
 function fromPreset(P, layout = "A") {
+  if (P.empty) return { paint: "today", light: "today", finish: "none", room: new Set(), objects: [] };
   const s = P.slots, x = new Set(P.x || []);
   const out = { paint: s.paint, light: s.light, finish: s.wf === "grass" || s.wf === "rail" ? s.wf : "none", room: new Set([...x].filter((k) => k in ROOM_ADDONS)), objects: [] };
-  if (P.empty) return out;
   const add = (p, o, a) => { if (TPL[p]) out.objects.push(inst(p, o, a)); };
   const addTag = (tag) => { for (const p of PROTO_IDS) if (p === tag || p.startsWith(tag + "/")) add(p); };
   let top = s.desk, len = s.desklen;
