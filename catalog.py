@@ -281,6 +281,7 @@ for k, x in enumerate((kx0 + 0.22, kx1 - 0.22)):
 
 # ================================================================ art
 use_option("art:film")  # 84 vintage Polish film posters
+item("above desk")
 deep = mat("Film Blue", "#23395b", rough=0.8)
 box("Poster A Film Frame", 0.0, 0.022, 1.00, 1.40, 1.22, 1.96, M["black"])
 box("Poster A Film Paper", 0.022, 0.024, 1.02, 1.38, 1.24, 1.94, deep)
@@ -288,6 +289,7 @@ rod("Poster A Film Head", (0.024, 1.20, 1.70), (0.027, 1.20, 1.70), 0.08, M["p_r
 box("Poster A Film Body", 0.024, 0.027, 1.14, 1.26, 1.36, 1.62, M["p_red"])
 box("Poster A Film Title", 0.024, 0.027, 1.05, 1.35, 1.27, 1.31, M["p_cream"])
 sx = 0.52
+item("on shaft")
 box("Poster B Film Frame", sx, sx + 0.022, D - 0.46, D - 0.08, 1.12, 1.92, M["black"])
 box("Poster B Film Paper", sx + 0.022, sx + 0.024, D - 0.44, D - 0.10, 1.14, 1.90, M["p_black"])
 rod("Poster B Film Eye", (sx + 0.024, D - 0.27, 1.60), (sx + 0.027, D - 0.27, 1.60), 0.11, M["p_mustard"], verts=32)
@@ -408,6 +410,7 @@ rod("Shelf Peg Scissors", (0.07, 0.70, 1.30), (0.07, 0.70, 1.16), 0.006, M["p_re
 
 # ================================================================ corner by the door
 use_option("corner:rocker")  # 63 bentwood rocker + 15 paper floor lantern
+item("rocker")
 rk = empty("Rocker", (2.15, 2.45, 0), rot_z=math.radians(20))
 for s, yy in (("L", -0.24), ("R", 0.24)):
     pts = [(-0.42, yy, 0.10), (-0.25, yy, 0.03), (0.0, yy, 0.01), (0.25, yy, 0.05), (0.42, yy, 0.16), (0.52, yy, 0.30)]
@@ -425,6 +428,7 @@ rbk = empty("Rocker Back Pivot", (0.26, 0, 0.75), parent=rk)
 rbk.rotation_euler = (0, math.radians(-75), 0)
 torus("Rocker Back Ring", (0, 0, 0), 0.23, 0.014, bentwood, scale=(1.3, 0.75, 1.0), parent=rbk)
 cyl("Rocker Back Cane", 0, 0, -0.004, 0.004, 0.21, cane, verts=32, parent=rbk).scale = (1.3, 0.72, 1.0)
+item("lantern")
 lx2, ly2 = 2.50, 3.05
 for k in range(3):
     a = k * 2 * math.pi / 3 + 0.4
@@ -451,10 +455,11 @@ use_option("corner:pair")  # 62 two 366 armchairs and a coffee table
 # The reading corner's chair is reused by copying its objects.
 src = bpy.data.objects["366 Armchair"]
 for k, (loc, rz) in enumerate((((2.25, 2.50, 0), 20), ((1.40, 1.95, 0), 200))):
+    item(f"armchair {k + 1}")
     root = src.copy()
     root.name = f"Pair Armchair {k}"
     CURRENT["coll"].objects.link(root)
-    root["opt"] = CURRENT["opt"]
+    tag(root)
     root.location = loc
     root.rotation_euler = (0, 0, math.radians(rz))
     stack = [(src, root)]
@@ -463,9 +468,10 @@ for k, (loc, rz) in enumerate((((2.25, 2.50, 0), 20), ((1.40, 1.95, 0), 200))):
         for ch in s_.children:
             c2 = ch.copy()
             CURRENT["coll"].objects.link(c2)
-            c2["opt"] = CURRENT["opt"]
+            tag(c2)
             c2.parent = d_
             stack.append((ch, c2))
+item("coffee table")
 cyl("Pair Table Top", 1.85, 2.25, 0.40, 0.43, 0.30, M["walnut"], verts=40)
 cyl("Pair Table Stem", 1.85, 2.25, 0.03, 0.40, 0.04, M["walnut"], verts=16)
 cyl("Pair Table Foot", 1.85, 2.25, 0.0, 0.03, 0.20, M["walnut"], verts=32)
@@ -477,13 +483,16 @@ sphere("Hanging Shell", (2.15, 2.55, 1.10), 0.45, rattan, scale=(1.0, 1.0, 1.15)
 sphere("Hanging Cushion", (2.02, 2.50, 0.88), 0.36, M["armchair"], scale=(1.0, 1.0, 0.35))
 
 use_option("corner:beanbag")  # 70 leather bean bag and a lamp
+item("bean bag")
 sphere("Beanbag", (2.25, 2.55, 0.28), 0.45, cognac, scale=(1.0, 1.0, 0.62))
+item("floor lamp")
 cyl("Beanbag Lamp Base", 2.55, 3.10, 0.0, 0.03, 0.12, M["black"])
 rod("Beanbag Lamp Pole", (2.55, 3.10, 0.03), (2.55, 3.10, 1.45), 0.01, M["black"], verts=8)
 cyl("Beanbag Lamp Shade", 2.55, 3.10, 1.40, 1.62, 0.18, M["linen_shade"], verts=32, caps=False)
 light_anchor("Light Beanbag Lamp", (2.55, 3.10, 1.48), "floor")
 
 use_option("corner:secretary")  # 50 secretary desk with a stool
+item("secretary")
 sx0, sy0, sy1 = W - 0.42, 2.30, 3.05
 box("Secretary Body", sx0, W, sy0, sy1, 0.10, 1.10, M["walnut"], bevel=0.004)
 box("Secretary Flap", sx0 - 0.38, sx0, sy0 + 0.02, sy1 - 0.02, 0.72, 0.74, M["walnut"])
@@ -493,6 +502,7 @@ for k in range(4):
     box(f"Secretary Pigeonhole {k}", sx0 - 0.002, sx0, y, y + 0.14, 0.80, 1.02, M["black"])
 for i, (x, y) in enumerate(((sx0 + 0.05, sy0 + 0.05), (W - 0.05, sy0 + 0.05), (sx0 + 0.05, sy1 - 0.05), (W - 0.05, sy1 - 0.05))):
     rod(f"Secretary Leg {i}", (x, y, 0.10), (x - 0.02, y, 0.0), 0.018, M["walnut"], r2=0.011, verts=8)
+item("stool")
 cyl("Secretary Stool Seat", 1.98, 2.68, 0.44, 0.48, 0.18, M["armchair"], verts=24)
 for k in range(3):
     a = k * 2 * math.pi / 3
@@ -639,7 +649,9 @@ for k, x in enumerate((1.70, 2.55)):
     light_anchor(f"Light Sconce {k}", (x, 0.28, 1.60), "sconce")
 
 use_option("x:piclights")  # 14 picture lights over the posters
+item("above desk")
 box("Poster A Light", 0.0, 0.10, 1.06, 1.34, 1.98, 2.01, M["brass"])
+item("on shaft")
 box("Poster B Light", 0.52, 0.62, D - 0.42, D - 0.12, 1.94, 1.97, M["brass"])
 
 use_option("x:uplight")  # 18 uplight washing the green shaft
@@ -858,7 +870,7 @@ def copy_tree(src_name, new_name, loc, rz):
     root = src.copy()
     root.name = new_name
     CURRENT["coll"].objects.link(root)
-    root["opt"] = CURRENT["opt"]
+    tag(root)
     root.location = loc
     root.rotation_euler = (0, 0, math.radians(rz))
     stack = [(src, root)]
@@ -867,7 +879,7 @@ def copy_tree(src_name, new_name, loc, rz):
         for ch in s_.children:
             c2 = ch.copy()
             CURRENT["coll"].objects.link(c2)
-            c2["opt"] = CURRENT["opt"]
+            tag(c2)
             c2.parent = d_
             stack.append((ch, c2))
     return root
@@ -910,6 +922,7 @@ box("Freed Dresser Print", 0.022, 0.024, FY0 + 0.24, FY1 - 0.24, 1.24, 1.68, M["
 rod("Freed Dresser Print Sun", (0.024, (FY0 + FY1) / 2, 1.48), (0.027, (FY0 + FY1) / 2, 1.48), 0.13, M["p_mustard"], verts=32)
 
 use_option("freed:desk2")  # second, screen-free hobby desk
+item("desk")
 box("Freed Desk Top", 0.0, 0.60, FY0 + 0.04, FY1 - 0.04, 0.72, 0.75, M["oak"], bevel=0.004)
 for k, y in enumerate((FY0 + 0.15, FY1 - 0.15)):
     rod(f"Freed Desk Trestle A {k}", (0.08, y, 0.0), (0.30, y, 0.72), 0.016, M["black"], verts=8)
@@ -921,6 +934,7 @@ rod("Freed Desk Lamp Post", (0.05, FY1 - 0.15, 0.75), (0.05, FY1 - 0.15, 1.15), 
 rod("Freed Desk Lamp Arm", (0.05, FY1 - 0.15, 1.15), (0.30, FY1 - 0.30, 1.18), 0.008, M["black"], verts=8)
 rod("Freed Desk Lamp Shade", (0.30, FY1 - 0.30, 1.18), (0.34, FY1 - 0.32, 1.06), 0.025, M["black"], r2=0.07, verts=16)
 light_anchor("Light Freed Desk", (0.34, FY1 - 0.32, 1.04), "desk")
+item("stool")
 cyl("Freed Desk Stool", 0.80, (FY0 + FY1) / 2, 0.44, 0.48, 0.17, M["oak"], verts=24)
 for k in range(3):
     a = k * 2 * math.pi / 3
@@ -928,18 +942,22 @@ for k in range(3):
         (0.80 + 0.16 * math.cos(a), (FY0 + FY1) / 2 + 0.16 * math.sin(a), 0.0), 0.013, M["oak"], verts=8)
 
 use_option("freed:nook")  # reading nook in the alcove
+item("armchair")
 copy_tree("366 Armchair", "Freed Nook Armchair", (0.42, 2.20, 0), 180)
+item("floor lamp")
 for k in range(3):
     a = k * 2 * math.pi / 3 + 0.5
     rod(f"Freed Nook Lamp Leg {k}", (0.18, 2.66, 1.15), (0.18 + 0.15 * math.cos(a), 2.66 + 0.15 * math.sin(a), 0.0), 0.011, M["walnut"], verts=8)
 cyl("Freed Nook Lamp Shade", 0.18, 2.66, 1.28, 1.56, 0.20, M["linen_shade"], verts=32, caps=False)
 rod("Freed Nook Lamp Stem", (0.18, 2.66, 1.10), (0.18, 2.66, 1.30), 0.008, M["brass"], verts=8)
 light_anchor("Light Freed Nook", (0.18, 2.66, 1.40), "floor")
+item("shelf")
 box("Freed Nook Shelf", 0.0, 0.20, FY0 + 0.15, FY0 + 0.75, 1.48, 1.51, M["oak"])
 books_y("Freed Nook", 0.02, 0.18, FY0 + 0.18, FY0 + 0.60, 1.51)
 potted("Freed Nook Pot", 0.10, FY0 + 0.68, 1.51, 0.05, M["ceramic"])
 
 use_option("freed:plants")  # a cluster of big plants
+item("fig")
 cyl("Freed Fig Pot", 0.25, 1.95, 0.0, 0.34, 0.17, M["terracotta"], r2=0.14, verts=24)
 rod("Freed Fig Trunk", (0.25, 1.95, 0.30), (0.27, 1.96, 1.55), 0.016, M["walnut"], verts=8)
 for k in range(16):
@@ -947,11 +965,13 @@ for k in range(16):
     a = k * 2.3
     sphere(f"Freed Fig Leaf {k}", (0.27 + 0.18 * math.cos(a), 1.96 + 0.18 * math.sin(a), 0.95 + 0.65 * t), 0.09, M["leaf"],
            scale=(0.8, 1.0, 0.12), rot=(0.3, 0.6, a))
+item("snake plant")
 cyl("Freed Snake Pot", 0.25, 2.38, 0.0, 0.28, 0.14, M["ceramic"], verts=24)
 for k in range(9):
     a = k * 0.7
     rod(f"Freed Snake Leaf {k}", (0.25 + 0.05 * math.cos(a), 2.38 + 0.05 * math.sin(a), 0.26),
         (0.25 + 0.10 * math.cos(a), 2.38 + 0.10 * math.sin(a), 0.70 + 0.18 * (k % 3)), 0.02, lime_green, r2=0.004, verts=6)
+item("fern")
 cyl("Freed Fern Stand", 0.28, 2.64, 0.0, 0.45, 0.10, M["walnut"], verts=16)
 cyl("Freed Fern Pot", 0.28, 2.64, 0.45, 0.65, 0.12, M["ceramic"], verts=24)
 for k in range(12):
@@ -961,16 +981,20 @@ for k in range(12):
 
 # ================================================================ opposite the desk: bean bag set
 use_piece("beanbag")  # big corduroy bean bag, a pouf table, a floor lamp and a book basket
+item("bean bag")
 cord = mat("Corduroy Olive", "#6b6a3e", rough=1.0)
 sphere("Opp Beanbag", (W - 0.52, 0.85, 0.30), 0.50, cord, scale=(1.0, 1.0, 0.62))
 sphere("Opp Beanbag Dent", (W - 0.62, 0.80, 0.52), 0.30, cord, scale=(1.0, 1.0, 0.35))
+item("pouf")
 cyl("Opp Beanbag Pouf", W - 0.32, 1.50, 0.0, 0.36, 0.20, cognac, verts=24)
 box("Opp Beanbag Tray", W - 0.42, W - 0.22, 1.40, 1.60, 0.36, 0.38, M["walnut"])
 cyl("Opp Beanbag Mug", W - 0.36, 1.46, 0.38, 0.47, 0.04, M["p_mustard"])
+item("floor lamp")
 cyl("Opp Beanbag Lamp Base", W - 0.15, 0.30, 0.0, 0.03, 0.12, M["black"])
 rod("Opp Beanbag Lamp Pole", (W - 0.15, 0.30, 0.03), (W - 0.15, 0.30, 1.40), 0.01, M["black"], verts=8)
 cyl("Opp Beanbag Lamp Shade", W - 0.15, 0.30, 1.36, 1.58, 0.18, M["linen_shade"], verts=32, caps=False)
 light_anchor("Light Opp Beanbag", (W - 0.15, 0.30, 1.44), "floor")
+item("basket")
 cyl("Opp Beanbag Basket", W - 0.20, 1.10, 0.0, 0.30, 0.15, rattan, verts=20)
 for k in range(4):
     box(f"Opp Beanbag Book {k}", W - 0.28, W - 0.12, 1.02 + k * 0.035, 1.05 + k * 0.035, 0.20, 0.42, random.choice(BOOKS))
@@ -1083,6 +1107,7 @@ leather = M["leather"]
 def eames_set(prefix, chair_xy, ottoman_xy, lamp):
     """Chair faces -x (into the room), back square to the east wall; the reclined back
     reaches ~0.6 m behind the chair's centre, so keep the centre at least that far off the wall."""
+    item("chair")
     ec = empty(f"{prefix} Lounge", (*chair_xy, 0))
     for k in range(5):
         a = k * 2 * math.pi / 5
@@ -1103,6 +1128,7 @@ def eames_set(prefix, chair_xy, ottoman_xy, lamp):
     box(f"{prefix} Head Shell", 0.0, 0.03, -0.31, 0.31, 0.45, 0.70, M["walnut"], bevel=0.015, parent=back)
     box(f"{prefix} Head Cushion", -0.10, 0.0, -0.28, 0.28, 0.47, 0.68, leather, bevel=0.04, parent=back)
     box(f"{prefix} Back Spine", 0.03, 0.05, -0.04, 0.04, 0.10, 0.60, M["alu"], parent=back)
+    item("ottoman")
     eo = empty(f"{prefix} Ottoman", (*ottoman_xy, 0))
     for k in range(4):
         a = k * math.pi / 2 + math.pi / 4
@@ -1111,6 +1137,7 @@ def eames_set(prefix, chair_xy, ottoman_xy, lamp):
     box(f"{prefix} Ottoman Shell", -0.28, 0.28, -0.32, 0.32, 0.27, 0.31, M["walnut"], bevel=0.02, parent=eo)
     box(f"{prefix} Ottoman Cushion", -0.26, 0.26, -0.29, 0.29, 0.31, 0.42, leather, bevel=0.04, parent=eo)
     # Slim floor lamp with a dome shade, arcing over the chair
+    item("floor lamp")
     (bx, by), (hx, hy) = lamp
     cyl(f"{prefix} Lamp Base", bx, by, 0.0, 0.03, 0.12, M["black"], verts=24)
     rod(f"{prefix} Lamp Pole", (bx, by, 0.03), (bx, by, 1.45), 0.01, M["black"], verts=8)

@@ -49,7 +49,20 @@ def material(name, color, rough=0.6, metal=0.0, emit=None, emit_strength=0.0):
     return m
 
 
-CURRENT = {"coll": None, "opt": None}
+CURRENT = {"coll": None, "opt": None, "item": None}
+
+
+def item(name):
+    """Objects made after this belong to a separately movable item of the current variant."""
+    CURRENT["item"] = name
+
+
+def tag(o):
+    if CURRENT["opt"]:
+        o["opt"] = CURRENT["opt"]
+    if CURRENT["item"]:
+        o["item"] = CURRENT["item"]
+    return o
 
 
 def use_option(opt):
@@ -57,15 +70,14 @@ def use_option(opt):
     bpy.context.scene.collection.children.link(c)
     CURRENT["coll"] = c
     CURRENT["opt"] = opt
+    CURRENT["item"] = None
 
 
 def _adopt(o):
     for c in list(o.users_collection):
         c.objects.unlink(o)
     CURRENT["coll"].objects.link(o)
-    if CURRENT["opt"]:
-        o["opt"] = CURRENT["opt"]
-    return o
+    return tag(o)
 
 
 def box(name, x0, x1, y0, y1, z0, z1, mat, bevel=0.0, parent=None):
@@ -136,8 +148,7 @@ def empty(name, loc, rot_z=0.0, parent=None):
     o.location = loc
     o.rotation_euler = (0, 0, rot_z)
     CURRENT["coll"].objects.link(o)
-    if CURRENT["opt"]:
-        o["opt"] = CURRENT["opt"]
+    tag(o)
     if parent:
         o.parent = parent
     return o
@@ -183,9 +194,7 @@ def curtain(name, x0, x1, y, z0, z1, folds, amp, mat):
     o = bpy.data.objects.new(name, me)
     o.data.materials.append(mat)
     CURRENT["coll"].objects.link(o)
-    if CURRENT["opt"]:
-        o["opt"] = CURRENT["opt"]
-    return o
+    return tag(o)
 
 
 # ---------------------------------------------------------------- materials
@@ -266,6 +275,7 @@ for i in range(5):
 
 # ---------------------------------------------------------------- 3. posters
 use_option("art:posters")
+item("above desk")
 
 
 def poster_west(name, y0, y1, z0, z1, bg, shapes):
@@ -283,6 +293,7 @@ poster_west("Poster A", py0, py1, pz0, pz1, M["p_cream"], [
 ])
 # Poster B on the shaft's room-facing side (x = 0.52)
 sx = 0.52
+item("on shaft")
 box("Poster B Frame", sx, sx + 0.022, D - 0.48, D - 0.06, 1.22, 1.84, M["oak"])
 box("Poster B Paper", sx + 0.022, sx + 0.024, D - 0.45, D - 0.09, 1.25, 1.81, M["p_mustard"])
 rod("Poster B Circle", (sx + 0.024, D - 0.27, 1.62), (sx + 0.027, D - 0.27, 1.62), 0.12, M["p_teal"], verts=40)
@@ -362,6 +373,7 @@ curtain("Curtain Right", 1.52, 1.96, 0.36, 0.02, H - 0.03, 7, 0.035, M["curtain"
 
 # ---------------------------------------------------------------- 8. reading corner (366 armchair)
 use_option("corner:reading")
+item("armchair")
 arm = empty("366 Armchair", (2.20, 2.45, 0), rot_z=math.radians(20))
 # Local frame: front at -x. Back legs rise to a pivot and continue as posts
 # tilted 16 degrees back; the back cushion and its rails ride on those posts.
@@ -384,6 +396,7 @@ for s, yy in (("L", -0.31), ("R", 0.31)):
 box("Armchair Front Rail", -0.27, -0.23, -0.31, 0.31, 0.28, 0.33, M["walnut"], parent=arm)
 box("Armchair Rear Rail", BACK_X - 0.02, BACK_X + 0.02, -0.31, 0.31, 0.28, 0.33, M["walnut"], parent=arm)
 # Tripod floor lamp
+item("floor lamp")
 lx, ly = 2.50, 3.05
 for i in range(3):
     a = i * 2 * math.pi / 3 + 0.5
@@ -393,6 +406,7 @@ rod("Floor Lamp Stem", (lx, ly, 1.10), (lx, ly, 1.30), 0.008, M["brass"])
 cyl("Floor Lamp Shade", lx, ly, 1.28, 1.58, 0.22, M["linen_shade"], verts=40, caps=False)
 light_anchor("Light Floor Lamp", (lx, ly, 1.40), "floor")
 # Round side table
+item("side table")
 tx, ty = 2.50, 1.98
 cyl("Side Table Top", tx, ty, 0.50, 0.53, 0.22, M["walnut"], verts=40)
 for i in range(3):
@@ -645,18 +659,47 @@ bench_coll = CURRENT["coll"]
 # ---------------------------------------------------------------- the rest of the catalog
 exec(open(os.path.join(HERE, "catalog.py")).read())
 
-# ---------------------------------------------------------------- layout groups
-def group(name, pivot, members, extras=None):
-    """Parent top-level members under an empty at pivot; the viewer moves the empty."""
-    g = bpy.data.objects.new(name, None)
-    g.location = (pivot[0], pivot[1], 0)
+# ---------------------------------------------------------------- object templates
+# Everything you can place in the planner becomes one template node: an empty at the
+# middle of its footprint (on the wall line for wall pieces) holding its meshes. The
+# viewer hides the templates and clones them for each object in the scene. Extras:
+#   proto     template id ("desk", "corner:reading/armchair", "x:pouf"...)
+#   home      [x, y] where today's room / the presets put it
+#   mount     "floor" (moves across the floor) or "wall" (slides along a wall)
+#   facing    for wall pieces, the wall it hangs on: W/E/N/S
+#   set, setPivot   opposite-wall pieces: their set and its pivot, for the desk arrangements
+# Lights, paint, the window, radiator and door stay in the room and are switched globally.
+
+def make_template(pid, members, extras=None, pivot=None, force=None):
+    members = [o for o in members if o.parent is None]
+    pts = [d.matrix_world @ Vector(c) for o in members for d in (o, *o.children_recursive) if d.type == "MESH" for c in d.bound_box]
+    if not pts:
+        return None
+    x0, x1 = min(p.x for p in pts), max(p.x for p in pts)
+    y0, y1 = min(p.y for p in pts), max(p.y for p in pts)
+    z0 = min(p.z for p in pts)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    mount, facing = "floor", ""
+    if force != "floor" and (z0 > 0.25 or force == "wall"):  # off the floor and against a wall: pivot on the wall line
+        near = [(abs(x0 - 0.0), "W", (0.0, cy)), (abs(x1 - W), "E", (W, cy)), (abs(y1 - D), "N", (cx, D)),
+                (abs(y0 - 0.0), "S", (cx, 0.0)), (abs(x0 - 0.52) if y0 > D - 0.53 else 9, "W", (0.52, cy))]
+        dist, f, piv = min(near, key=lambda t: t[0])
+        if dist < 0.05:
+            mount, facing, (cx, cy) = "wall", f, piv
+    if pivot:
+        cx, cy = pivot
+    g = bpy.data.objects.new("tpl_" + pid.replace(":", "_").replace("/", "__").replace(" ", "_"), None)
+    g.location = (cx, cy, 0)
     bpy.context.scene.collection.objects.link(g)
+    g["proto"] = pid
+    g["home"] = [round(cx, 4), round(cy, 4)]
+    g["mount"] = mount
+    if facing:
+        g["facing"] = facing
     for k, v in (extras or {}).items():
         g[k] = v
     bpy.context.view_layer.update()
     for o in members:
-        if o.parent is not None:
-            continue
         mw = o.matrix_world.copy()
         o.parent = g
         o.matrix_parent_inverse = g.matrix_world.inverted()
@@ -666,40 +709,58 @@ def group(name, pivot, members, extras=None):
 
 def named(*prefixes, exact=()):
     return [o for o in bpy.data.objects
-            if o.type in ("MESH", "EMPTY") and not o.name.startswith("grp_")
+            if o.type in ("MESH", "EMPTY") and o.parent is None and not o.name.startswith("tpl_")
             and (o.name.startswith(prefixes) or o.name in exact)]
 
 
-group("grp_desk", (0.35, 0.80), named(
-    "Desk ", "Monitor ", "Laptop ", "Lamp ", "Bulb ", "Orchid ", "Keyboard", "Mouse", "PC ", "Cable Tray",
-    "Mushroom ", "Light Desk", "Light Bulb", "Light Mushroom", exact=("Glass",)), {"piece": "desk"})
-group("grp_chair", (1.05, 0.75), named("Chairx ", exact=("MARKUS Chair", "Aluminium Group Chair", "Kneeling Chair", "Cantilever Chair")),
-      {"piece": "chair"})
-group("grp_deskwall", (0.0, 0.80), named(
-    "Shelf", "Book Low", "Book Mid", "Vase Low", "Vase Top", "Ceramic Ball", "Record", "Poster A ", "Wallfeat "))
-group("grp_console", (W - 0.235, 0.95), list(console_coll.objects), {"opt": "opp:console", "piece": "opp:console"})
-group("grp_long", (W - 0.235, 1.025), list(long_coll.objects), {"opt": "opp:long", "piece": "opp:long"})
-group("grp_bench", (W - 0.31, 0.90), list(bench_coll.objects), {"opt": "opp:bench", "piece": "opp:bench"})
-for name, pivot in OPP_GROUPS.items():
-    group("grp_" + name, pivot, list(bpy.data.collections["opp:" + name].objects), {"opt": "opp:" + name, "piece": "opp:" + name})
+def coll_objects(*tags):
+    return [o for t in tags if t in bpy.data.collections for o in bpy.data.collections[t].objects if o.parent is None]
 
-# ---------------------------------------------------------------- movable pieces
-# Free-standing furniture the viewer lets you drag and rotate: each variant becomes one
-# piece, pivoting on the middle of its footprint. Wall-mounted things stay put.
-DRAG_SLOTS = ("corner:", "plant:", "freed:", "rug:", "between:")
-DRAG_X = {"x:pouf", "x:ottoman", "x:globe", "x:humidifier", "x:runner", "x:laddershelf", "x:bench"}
+
+# Families: one template whose versions the viewer switches per object
+make_template("desk", named(
+    "Desk ", "Monitor ", "Laptop ", "Lamp ", "Bulb ", "Orchid ", "Keyboard", "Mouse", "PC ", "Cable Tray",
+    "Mushroom ", "Light Desk", "Light Bulb", "Light Mushroom", exact=("Glass",)), {"family": "desk"}, pivot=(0.35, 0.80))
+make_template("chair", named("Chairx ", exact=("MARKUS Chair", "Aluminium Group Chair", "Kneeling Chair", "Cantilever Chair")),
+              {"family": "chair"}, pivot=(1.05, 0.75))
+make_template("wardrobe", named("Wardrobe ", "Reed ", "Reeded Backer"), {"family": "wardrobe"})
+make_template("shelves", coll_objects("shelf:string", "shelf:planks", "shelf:rails", "shelf:cubes", "shelf:pegboard", "x:growlight"),
+              {"family": "shelf"})
+# Rug versions sit in different spots; centre each on the family pivot so switching keeps the rug in place
+rug_tpl = make_template("rug", coll_objects("rug:geo"), {"family": "rug"})
+for t in ("rug:jute", "rug:kilim"):
+    objs = coll_objects(t)
+    pts = [d.matrix_world @ Vector(c) for o in objs for d in (o, *o.children_recursive) if d.type == "MESH" for c in d.bound_box]
+    vcx = (min(p.x for p in pts) + max(p.x for p in pts)) / 2
+    vcy = (min(p.y for p in pts) + max(p.y for p in pts)) / 2
+    for o in objs:
+        o.location.x += rug_tpl.location.x - vcx
+        o.location.y += rug_tpl.location.y - vcy
+    bpy.context.view_layer.update()
+    for o in objs:
+        mw = o.matrix_world.copy()
+        o.parent = rug_tpl
+        o.matrix_parent_inverse = rug_tpl.matrix_world.inverted()
+        o.matrix_world = mw
+
+ROOM_TAGS = {"wf:rail", "x:pelmet", "x:sill", "x:film", "x:colrad", "x:trv", "x:nightlight", "x:uplight",
+             "x:excluder", "x:hooks", "x:abovedoor", "x:projector"}
+OPP_PIVOTS = {"opp:console": (W - 0.235, 0.95), "opp:long": (W - 0.235, 1.025), "opp:bench": (W - 0.31, 0.90),
+              **{"opp:" + k: v for k, v in OPP_GROUPS.items()}}
 for coll in list(bpy.data.collections):
-    tag = coll.name
-    if not (tag.startswith(DRAG_SLOTS) or tag in DRAG_X) or tag in ("between:paint", "between:pinboard"):
+    ctag = coll.name
+    if ":" not in ctag or ctag in ROOM_TAGS or ctag.startswith(("light:", "paint:", "window:", "base_")):
         continue
     tops = [o for o in coll.objects if o.parent is None]
-    pts = [d.matrix_world @ Vector(c) for o in tops for d in (o, *o.children_recursive) if d.type == "MESH" for c in d.bound_box]
-    if not pts:
-        continue
-    centre = ((min(p.x for p in pts) + max(p.x for p in pts)) / 2, (min(p.y for p in pts) + max(p.y for p in pts)) / 2)
-    group("piece_" + tag.replace(":", "_"), centre, tops, {"piece": tag})
-group("piece_wardrobe", (0.30, 2.22), named("Wardrobe ", "Reed ", "Reeded Backer"), {"piece": "wardrobe"})
-
+    if not tops:
+        continue  # already in a family
+    items = {}
+    for o in tops:
+        items.setdefault(o.get("item") or "", []).append(o)
+    for name, members in items.items():
+        pid = f"{ctag}/{name}" if name and len(items) > 1 else ctag
+        extras = {"set": ctag, "setPivot": list(OPP_PIVOTS[ctag])} if ctag in OPP_PIVOTS else {}
+        make_template(pid, members, extras, force={"wf:slats": "wall", "between:paint": "wall", "between:felt": "floor"}.get(ctag))
 
 # ---------------------------------------------------------------- tag walls for the cut-away viewer
 for o in bpy.data.objects:
