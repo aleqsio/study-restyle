@@ -565,7 +565,7 @@ function inst(p, o = {}, a = []) {
   const adds = new Set(a.filter((k) => f && f.addons && k in f.addons));
   return { id: nextId++, p, x: t ? t.home[0] : 1.4, y: t ? t.home[1] : 1.6, r: 0, z: 0, o: opts, a: adds };
 }
-const state = { style: "green", scene: "everyday", view: "doll", paint: "today", finish: "none", light: "today", room: new Set(), colors: {}, objects: [] };
+const state = { style: "green", scene: "everyday", view: "doll", paint: "today", finish: "none", light: "today", room: new Set(), colors: {}, lamp: null, objects: [] };
 
 function rotateAbout([x, y], [px, py], rdeg) {
   const c = Math.cos(deg(rdeg)), s = Math.sin(deg(rdeg));
@@ -592,9 +592,9 @@ function arrange(objs, layout) {
 }
 // Turn one of the earlier option sets into a scene of objects
 function fromPreset(P, layout = "A") {
-  if (P.empty) return { paint: "today", light: "today", finish: "none", room: new Set(), colors: {}, objects: [] };
+  if (P.empty) return { paint: "today", light: "today", finish: "none", room: new Set(), colors: {}, lamp: null, objects: [] };
   const s = P.slots, x = new Set(P.x || []);
-  const out = { paint: s.paint, light: s.light, finish: s.wf === "grass" || s.wf === "rail" ? s.wf : "none", room: new Set([...x].filter((k) => k in ROOM_ADDONS)), colors: {}, objects: [] };
+  const out = { paint: s.paint, light: s.light, finish: s.wf === "grass" || s.wf === "rail" ? s.wf : "none", room: new Set([...x].filter((k) => k in ROOM_ADDONS)), colors: {}, lamp: null, objects: [] };
   const add = (p, o, a) => { if (TPL[p]) out.objects.push(inst(p, o, a)); };
   const addTag = (tag) => { for (const p of PROTO_IDS) if (p === tag || p.startsWith(tag + "/")) add(p); };
   let top = s.desk, len = s.desklen;
@@ -631,10 +631,11 @@ function encode(s) {
   t += "-" + bits36(ROOM_KEYS, s.room);
   const cols = WALL_KEYS.filter((k) => s.colors && s.colors[k]);
   if (cols.length) t += "~cc" + cols.map((k) => `.${WALL_KEYS.indexOf(k).toString(36)}${s.colors[k].slice(1)}`).join("");
+  if (s.lamp) t += "~cl." + s.lamp.slice(1);
   for (const o of s.objects) {
     const f = FAMILIES[o.p];
     const opts = f ? f.options.map((op) => Math.max(0, Object.keys(op.values).indexOf(o.o[op.key])).toString(36)).join("") + "-" + bits36(Object.keys(f.addons || {}), o.a) : "";
-    t += `~${CODE_OF[o.p]}.${n36(o.x * 100)}.${n36(o.y * 100)}.${n36(o.r)}.${n36(o.z * 100)}.${opts}`;
+    t += `~${CODE_OF[o.p]}.${n36(o.x * 100)}.${n36(o.y * 100)}.${n36(o.r)}.${n36(o.z * 100)}.${opts}${o.lc ? "." + o.lc.slice(1) : ""}`;
   }
   return t;
 }
@@ -644,18 +645,19 @@ function decode(tok) {
   if (!m) return null;
   const at = (i, keys) => keys[parseInt(m[1][i], 36)];
   const s = { style: at(0, STYLE_KEYS) || "green", scene: at(1, SCENE_KEYS) || "everyday", view: at(2, VIEW_KEYS) || "doll",
-    paint: at(3, PAINT_KEYS) || "today", finish: at(4, FINISH_KEYS) || "none", light: at(5, LIGHT_KEYS) || "today", room: unbits36(ROOM_KEYS, m[2]), colors: {}, objects: [] };
+    paint: at(3, PAINT_KEYS) || "today", finish: at(4, FINISH_KEYS) || "none", light: at(5, LIGHT_KEYS) || "today", room: unbits36(ROOM_KEYS, m[2]), colors: {}, lamp: null, objects: [] };
   for (const e of objs) {
     if (e.startsWith("cc.")) {
       for (const c of e.split(".").slice(1)) { const k = WALL_KEYS[parseInt(c[0], 36)]; if (k && /^[0-9a-f]{6}$/.test(c.slice(1))) s.colors[k] = "#" + c.slice(1); }
       continue;
     }
-    const [code, x, y, r, z, opts = ""] = e.split(".");
+    if (e.startsWith("cl.")) { if (/^[0-9a-f]{6}$/.test(e.slice(3))) s.lamp = "#" + e.slice(3); continue; }
+    const [code, x, y, r, z, opts = "", lc = ""] = e.split(".");
     const p = PROTO_OF_CODE[code];
     if (!p) continue;
     const f = FAMILIES[p], o = {}, [idx = "", ab = ""] = opts.split("-");
     if (f) f.options.forEach((op, i) => { const k = Object.keys(op.values)[parseInt(idx[i], 36)]; if (k) o[op.key] = k; });
-    s.objects.push({ id: nextId++, p, x: p36(x) / 100, y: p36(y) / 100, r: p36(r), z: p36(z) / 100, o: { ...defaultOpts(p), ...o }, a: f ? unbits36(Object.keys(f.addons || {}), ab) : new Set() });
+    s.objects.push({ id: nextId++, p, x: p36(x) / 100, y: p36(y) / 100, r: p36(r), z: p36(z) / 100, o: { ...defaultOpts(p), ...o }, a: f ? unbits36(Object.keys(f.addons || {}), ab) : new Set(), ...(/^[0-9a-f]{6}$/.test(lc) ? { lc: "#" + lc } : {}) });
   }
   return s;
 }
@@ -866,6 +868,7 @@ loadModel().then((gltf) => {
     const u = o.userData || {};
     if (u.light) {
       const l = makeLight(u.light);
+      l.userData.baseHex = l.color.getHex();
       if (u.light === "ceiling") ceilingLight = l;
       o.add(l);
     }
@@ -961,10 +964,34 @@ function makeNode(o) {
   furniture.add(node);
   return node;
 }
+// Light colour: the lamp's light and its glowing shade or bulb follow one colour
+const GLOW = new Set(["Bulb", "Bias Glow", "Mushroom Lamp", "Linen Shade", "Paper Lantern", "Opal Glass", "Plafon Diffuser", "Night Glow", "Grow Glow"]);
+const sharedMat = new WeakMap(); // mesh -> the shared material it had before tinting
+function tintLights(root, hex) {
+  root.traverse((n) => {
+    if (n.isLight && n.userData.baseHex !== undefined && n !== ceilingLight) n.color.set(hex || n.userData.baseHex);
+    if (!n.isMesh) return;
+    const shared = sharedMat.get(n) || n.material;
+    if (!shared || !GLOW.has(shared.name)) return;
+    if (!hex) { if (sharedMat.has(n)) { n.material = shared; sharedMat.delete(n); } return; }
+    if (!sharedMat.has(n)) { sharedMat.set(n, shared); n.material = shared.clone(); }
+    n.material.emissive.set(hex);
+    n.material.color.set(hex).lerp(new THREE.Color(0xffffff), 0.6);
+  });
+}
+const hasLamp = (p) => { let y = false; TPL[p]?.node.traverse((n) => { if (n.isLight) y = true; }); return y; };
+const LAMP_SWATCHES = [["Candle", "#ff8a2a"], ["Warm 2200K", "#ffa552"], ["Soft 2700K", "#ffc48c"], ["Neutral 4000K", "#ffe2c6"], ["Daylight", "#f2f4ff"],
+  ["Red", "#ff3b2f"], ["Amber", "#ffb000"], ["Green", "#3dff7a"], ["Teal", "#2fe6d0"], ["Blue", "#3c6bff"], ["Purple", "#9b4dff"], ["Pink", "#ff5fb4"]];
+function lampBlock(hex, fallback, scope) {
+  return `<div class="colrow"><label for="lamp-${scope}">Pick a colour</label>
+      <input type="color" id="lamp-${scope}" data-lampcolor="${scope}" value="${hex || fallback}">
+      ${hex ? `<button class="btn" data-unlamp="${scope}">Reset</button>` : `<span class="price">as bought</span>`}</div>
+    <div class="chips">${LAMP_SWATCHES.map(([n, c]) => `<button class="chip" data-setlamp="${c}" data-scope="${scope}" title="${c}"><i class="dot" style="background:${c}"></i>${n}</button>`).join("")}</div>`;
+}
 function applyInstance(node, o) {
   node.position.copy(toThree(o.x, o.y, o.z));
   node.rotation.set(0, deg(o.r), 0);
-  if (!FAMILIES[o.p]) return;
+  if (!FAMILIES[o.p]) return tintLights(node, o.lc);
   const tags = familyTags(o);
   node.traverse((n) => {
     if (n === node) return;
@@ -975,6 +1002,7 @@ function applyInstance(node, o) {
     if (u.hideWith) v = v && !tags.has(u.hideWith);
     n.visible = v;
   });
+  tintLights(node, o.lc);
   if (o.p === "desk") {
     const L = ["today", "walnut", "oak"].includes(o.o.top) ? parseInt(o.o.len.slice(1), 10) / 100 : 1.40;
     const y0 = Math.min(0.10, 1.646 - L), y1 = y0 + L, ds = y0 - 0.10, dn = y1 - 1.50;
@@ -1039,7 +1067,8 @@ function applyRoom(s) {
   lastMats = mats;
   applyMaterials(mats);
   const sc = SCENES[s.scene];
-  if (ceilingLight) { ceilingLight.color.set(sc.ceiling); ceilingLight.intensity = (s.light === "globe" ? 3 : 8) * sc.mul; }
+  if (ceilingLight) { ceilingLight.color.set(s.lamp || sc.ceiling); ceilingLight.intensity = (s.light === "globe" ? 3 : 8) * sc.mul; }
+  for (const n of roomTagged) if (String(n.userData.opt || "").startsWith("light:") || n.userData.slotBase === "light") tintLights(n, s.lamp);
   hemi.color.set(sc.hemi);
   hemi.intensity = sc.hemiI;
 }
@@ -1126,7 +1155,8 @@ function renderRoomSettings() {
         <input type="color" id="col-${k}" data-color="${k}" value="${(state.colors[k] || wallHex(WALLS[k].mat)).toLowerCase()}">
         ${state.colors[k] ? `<button class="btn" data-uncolor="${k}">Reset</button>` : `<span class="price">as styled</span>`}</div>`).join("")}</div>
       <p class="note">Each hand-picked colour adds ${fmt(WALL_PAINT[0])}–${fmt(WALL_PAINT[1])} zł for paint.</p></section>
-    <section class="block"><div class="block-head"><h2>Ceiling light</h2></div>${chipRow("light", Object.entries(LIGHTS), state.light)}</section>
+    <section class="block"><div class="block-head"><h2>Ceiling light</h2></div>${chipRow("light", Object.entries(LIGHTS), state.light)}
+      <p class="row-label">Light colour<span>smart bulb</span></p>${lampBlock(state.lamp, "#ffd2a0", "ceiling")}</section>
     <section class="block"><div class="block-head"><h2>Window, radiator, door</h2><span>${[...state.room].length} on</span></div>
       <div class="xlist">${Object.entries(ROOM_ADDONS).map(([k, v]) => `<label class="xrow"><input type="checkbox" data-room="${k}" ${state.room.has(k) ? "checked" : ""}>
         <span class="name">${esc(v.name)}</span><span class="price">${fmt(v.lo)}–${fmt(v.hi)}</span></label>`).join("")}</div></section>`;
@@ -1143,6 +1173,11 @@ function renderWallSettings(k) {
       <p class="note">Click another wall to paint that one, or empty floor to go back.</p></section>`;
 }
 const WALL_SWATCHES = [["Warm white", "#efe9df"], ["Sage", "#9aa98c"], ["Forest", "#3f5a45"], ["Mustard", "#c9a24a"], ["Terracotta", "#b8674a"], ["Teak", "#8a5a3b"], ["Dusty blue", "#7d93a6"], ["Charcoal", "#3b3a38"]];
+function lampHex(o) {
+  let hex = null;
+  instNodes.get(o.id)?.traverse((n) => { if (!hex && n.isLight && n.userData.baseHex !== undefined) hex = "#" + new THREE.Color(n.userData.baseHex).getHexString(); });
+  return hex || "#ffc98f";
+}
 function renderObjectList() {
   objectsEl.innerHTML = `<div class="block-head"><h2>In the room</h2><span>${state.objects.length} pieces</span></div>
     ${state.objects.length ? `<div class="objlist">${state.objects.map((o) => { const [lo, hi] = priceOf(o); return `<button class="objrow" data-select="${o.id}" aria-current="${selected && selected.id === o.id}">
@@ -1161,6 +1196,7 @@ function renderObjectSettings(o) {
     if (f.addons) html += `<section class="block"><p class="row-label">Add-ons</p><div class="xlist">${Object.entries(f.addons).map(([k, v]) => `<label class="xrow">
       <input type="checkbox" data-addon="${k}" ${o.a.has(k) ? "checked" : ""}><span class="name">${esc(v[0])}</span><span class="price">${fmt(v[1])}–${fmt(v[2])}</span></label>`).join("")}</div></section>`;
   }
+  if (hasLamp(o.p)) html += `<section class="block"><p class="row-label">Light colour<span>smart bulb</span></p>${lampBlock(o.lc, lampHex(o), "obj")}</section>`;
   const similar = PROTO_IDS.filter((p) => p !== o.p && infoOf(p).cat === info.cat && TPL[p] && TPL[p].mount === t.mount && (FAMILIES[p] || SINGLES[p][4] !== false));
   if (similar.length) html += `<section class="block"><p class="row-label">Replace with</p><div class="chips">${similar.map((p) => `<button class="chip" data-replace="${p}">${esc(infoOf(p).name)}</button>`).join("")}</div></section>`;
   html += `<section class="block"><p class="row-label">Position</p><div class="actions">
@@ -1193,6 +1229,12 @@ function onPanelClick(e) {
   if (d.room && b.tagName === "INPUT") { b.checked ? state.room.add(d.room) : state.room.delete(d.room); return update(); }
   if (d.select) { const x = state.objects.find((q) => q.id === Number(d.select)); if (x) select(x, true); return; }
   if (d.uncolor) { delete state.colors[d.uncolor]; return update(); }
+  if (d.setlamp || d.unlamp) {
+    const hex = d.setlamp || null, scope = d.scope || d.unlamp;
+    if (scope === "ceiling") state.lamp = hex;
+    else if (o) { if (hex) o.lc = hex; else delete o.lc; }
+    return update();
+  }
   if (d.setcolor && selected && selected.wall) { state.colors[selected.wall] = d.setcolor; return update(); }
   if (d.act === "back") return select(null);
   if (!o) return;
@@ -1212,13 +1254,20 @@ function onPanelClick(e) {
   if (d.act === "del") return removeObj(o);
 }
 inspectorEl.addEventListener("click", onPanelClick);
+function setLampFrom(el) {
+  const scope = el.dataset.lampcolor, o = selected && state.objects.find((x) => x.id === selected.id);
+  if (scope === "ceiling") state.lamp = el.value;
+  else if (o) { o.lc = el.value; const node = instNodes.get(o.id); if (node) tintLights(node, o.lc); }
+}
 inspectorEl.addEventListener("input", (e) => {
+  if (e.target.dataset && e.target.dataset.lampcolor) { setLampFrom(e.target); if (loaded && e.target.dataset.lampcolor === "ceiling") applyRoom(state); return; }
   const k = e.target.dataset && e.target.dataset.color;
   if (!k) return;
   state.colors[k] = e.target.value;
   if (loaded) applyRoom(comparing ? { ...TODAY_STATE, scene: state.scene } : state);
 });
 inspectorEl.addEventListener("change", (e) => {
+  if (e.target.dataset && e.target.dataset.lampcolor) { setLampFrom(e.target); return update(); }
   const k = e.target.dataset && e.target.dataset.color;
   if (!k) return;
   state.colors[k] = e.target.value;
