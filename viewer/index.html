@@ -39,7 +39,7 @@
 html, body { height: 100%; }
 [hidden] { display: none !important; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; overflow: hidden; }
-.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 430px; }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 430px; grid-template-rows: minmax(0, 1fr); }
 .stage { position: relative; min-width: 0; background: var(--stage); }
 .stage.dropping { outline: 3px dashed var(--accent); outline-offset: -3px; }
 #room { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
@@ -82,7 +82,7 @@ button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent
 .btn:disabled { opacity: .45; cursor: default; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; font: 500 14px var(--font-display); color: var(--muted); letter-spacing: .04em; }
 
-.rail { background: var(--panel); border-left: 1px solid var(--line); min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.rail { background: var(--panel); border-left: 1px solid var(--line); min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .rail-top { padding-block: 16px 10px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); display: grid; gap: 10px; border-bottom: 1px solid var(--line); }
 h1 { font: 600 22px/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
 .total { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 9px 12px; background: var(--chip); border-radius: 8px; }
@@ -96,9 +96,6 @@ h1 { font: 600 22px/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
 .insp-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .insp-head h2 { font: 600 15px var(--font-display); text-transform: uppercase; letter-spacing: .1em; margin: 0; }
 .insp-head span { font-size: 12px; color: var(--muted); }
-  font: 600 13px var(--font-display); letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
-  background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px 9px; cursor: pointer;
-}
 .panel { overflow-y: auto; padding-block: 14px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); display: grid; align-content: start; gap: 20px; flex: 1; min-height: 0; }
 
 .block { display: grid; gap: 9px; }
@@ -164,7 +161,7 @@ h1 { font: 600 22px/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 58vh auto; height: auto; min-height: 100%; }
   .rail { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
   .panel { overflow: visible; }
-  .inspector { max-height: none; }
+  .inspector, .library { flex: none; max-height: none; } /* stacked: each section takes its content's height */
   .hint { display: none; }
 }
 </style>
