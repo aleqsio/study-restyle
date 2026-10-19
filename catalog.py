@@ -530,6 +530,7 @@ rod("Hifi Platter", (hx0 + 0.21, hy0 + 0.60, HH + 0.08), (hx0 + 0.21, hy0 + 0.60
 for k, y in enumerate((hy0 + 0.17, hy1 - 0.17)):
     box(f"Hifi Speaker {k}", hx0 + 0.08, hx0 + 0.32, y - 0.10, y + 0.10, HH, HH + 0.34, M["walnut"], bevel=0.005)
     box(f"Hifi Grille {k}", hx0 + 0.075, hx0 + 0.08, y - 0.09, y + 0.09, HH + 0.02, HH + 0.32, felt_grey)
+item("print")
 framed_print("Hifi Print", 0.55, 1.35, 1.15, 1.70, M["p_cream"],
              ((0.80, 1.45, 0.12, M["p_red"]), (1.05, 1.40, 0.12, M["p_teal"])))
 OPP_GROUPS["hifi"] = (W - 0.21, 0.95)

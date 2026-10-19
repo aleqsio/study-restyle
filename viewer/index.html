@@ -113,6 +113,8 @@ h1 { font: 600 22px/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
 .insp-head span { font-size: 12px; color: var(--muted); }
 .colrow { display: grid; grid-template-columns: minmax(0, 1fr) 44px 64px; gap: 8px; align-items: center; padding: 3px 6px; }
 .colrow label { font: 500 13px/1.3 var(--font-body); }
+.wall-swatch { width: 56px; height: 56px; border-radius: 8px; border: 1px solid var(--line); flex: none; }
+.chip .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.15); }
 .colrow input[type="color"] { width: 44px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
 .colrow .price { font: 400 11.5px var(--font-mono); color: var(--muted); text-align: right; }
 .colrow .btn { padding: 6px 8px; }
@@ -334,6 +336,7 @@ const WALLS = {
   ceiling: { name: "Ceiling", mat: "Ceiling" },
 };
 const WALL_KEYS = Object.keys(WALLS);
+const WALL_OF_MAT = Object.fromEntries(WALL_KEYS.map((k) => [WALLS[k].mat, k]));
 const WALL_PAINT = [150, 400]; // rough cost of repainting one surface yourself
 // Things fixed to the room (window, radiator, door, ceiling, floor)
 const ROOM_ADDONS = {
@@ -417,6 +420,10 @@ const SINGLES = {
   "opp:console": ["Steel drawers 120", "Storage", 1500, 3500],
   "opp:long": ["Steel drawers 195", "Storage", 2500, 5500],
   "opp:hifi": ["Hi-fi unit", "Storage", 1500, 4000],
+  "opp:console/print": ["Framed print", "Wall decor", 100, 300],
+  "opp:long/prints on a ledge": ["Picture ledge with prints", "Wall decor", 200, 500],
+  "opp:hifi/print": ["Framed print", "Wall decor", 100, 300, false],
+  "opp:bench/pegboard": ["Pegboard with tools", "Storage", 150, 500],
   "opp:prl": ["PRL wall unit", "Storage", 800, 3000],
   "opp:planchest": ["Plan chest", "Storage", 1500, 4000],
   "freed:dresser": ["Dresser", "Storage", 1500, 4000],
@@ -1056,7 +1063,7 @@ function restore(tok) {
   restoring = true;
   const keepView = state.view;
   Object.assign(state, s, { view: keepView });
-  if (selected && !state.objects.some((o) => o.id === selected.id)) select(null);
+  if (selected && selected.id && !state.objects.some((o) => o.id === selected.id)) select(null);
   // Ids are fresh after decoding, so re-find the selection by position in the list
   update(false);
   restoring = false;
@@ -1112,7 +1119,7 @@ function renderRoomSettings() {
       <p class="note">${esc(STYLES[state.style].note)}</p></section>
     <section class="block"><div class="block-head"><h2>Paint</h2></div>${chipRow("paint", Object.entries(PAINT), state.paint)}
       <p class="row-label">Wall finish</p>${chipRow("finish", Object.entries(FINISH), state.finish)}</section>
-    <section class="block"><div class="block-head"><h2>Wall colours</h2><span>override the style and paint</span></div>
+    <section class="block"><div class="block-head"><h2>Wall colours</h2><span>or click a wall in the room</span></div>
       <div class="xlist">${WALL_KEYS.map((k) => `<div class="colrow"><label for="col-${k}">${WALLS[k].name}</label>
         <input type="color" id="col-${k}" data-color="${k}" value="${(state.colors[k] || wallHex(WALLS[k].mat)).toLowerCase()}">
         ${state.colors[k] ? `<button class="btn" data-uncolor="${k}">Reset</button>` : `<span class="price">as styled</span>`}</div>`).join("")}</div>
@@ -1122,6 +1129,18 @@ function renderRoomSettings() {
       <div class="xlist">${Object.entries(ROOM_ADDONS).map(([k, v]) => `<label class="xrow"><input type="checkbox" data-room="${k}" ${state.room.has(k) ? "checked" : ""}>
         <span class="name">${esc(v.name)}</span><span class="price">${fmt(v.lo)}–${fmt(v.hi)}</span></label>`).join("")}</div></section>`;
 }
+function renderWallSettings(k) {
+  const v = state.colors[k] || wallHex(WALLS[k].mat);
+  inspectorEl.innerHTML = `<div class="insp-head"><button class="btn" data-act="back">← Room settings</button><span>Wall</span></div>
+    <div class="obj-head"><div class="wall-swatch" style="background:${v}"></div><div><h2>${esc(WALLS[k].name)}</h2>
+      <p>${state.colors[k] ? "your own colour" : "as the style and paint have it"}</p><p><strong>${state.colors[k] ? range(...WALL_PAINT) : "no cost"}</strong></p></div></div>
+    <section class="block"><p class="row-label">Colour</p><div class="colrow"><label for="wcol-${k}">Pick a colour</label>
+      <input type="color" id="wcol-${k}" data-color="${k}" value="${v.toLowerCase()}">
+      ${state.colors[k] ? `<button class="btn" data-uncolor="${k}">Reset</button>` : ""}</div>
+      <div class="chips">${WALL_SWATCHES.map(([n, c]) => `<button class="chip" data-setcolor="${c}" title="${c}"><i class="dot" style="background:${c}"></i>${n}</button>`).join("")}</div>
+      <p class="note">Click another wall to paint that one, or empty floor to go back.</p></section>`;
+}
+const WALL_SWATCHES = [["Warm white", "#efe9df"], ["Sage", "#9aa98c"], ["Forest", "#3f5a45"], ["Mustard", "#c9a24a"], ["Terracotta", "#b8674a"], ["Teak", "#8a5a3b"], ["Dusty blue", "#7d93a6"], ["Charcoal", "#3b3a38"]];
 function renderObjectList() {
   objectsEl.innerHTML = `<div class="block-head"><h2>In the room</h2><span>${state.objects.length} pieces</span></div>
     ${state.objects.length ? `<div class="objlist">${state.objects.map((o) => { const [lo, hi] = priceOf(o); return `<button class="objrow" data-select="${o.id}" aria-current="${selected && selected.id === o.id}">
@@ -1154,7 +1173,7 @@ function syncPanels() {
   document.getElementById("total").textContent = range(lo, hi);
   document.querySelectorAll("#scenes button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scene === state.scene)));
   const o = selected && state.objects.find((x) => x.id === selected.id);
-  if (o) renderObjectSettings(o); else renderRoomSettings();
+  if (o) renderObjectSettings(o); else if (selected && selected.wall) renderWallSettings(selected.wall); else renderRoomSettings();
   renderObjectList();
 }
 // One delegated handler for both panels
@@ -1172,6 +1191,7 @@ function onPanelClick(e) {
   if (d.room && b.tagName === "INPUT") { b.checked ? state.room.add(d.room) : state.room.delete(d.room); return update(); }
   if (d.select) { const x = state.objects.find((q) => q.id === Number(d.select)); if (x) select(x, true); return; }
   if (d.uncolor) { delete state.colors[d.uncolor]; return update(); }
+  if (d.setcolor && selected && selected.wall) { state.colors[selected.wall] = d.setcolor; return update(); }
   if (d.act === "back") return select(null);
   if (!o) return;
   for (const [k, v] of Object.entries(d)) {
@@ -1341,11 +1361,20 @@ function pick(e) {
   for (const h of raycaster.intersectObjects(scene.children, true)) {
     if (!h.object.isMesh || !visibleChain(h.object) || isGizmo(h.object)) continue;
     for (let x = h.object; x; x = x.parent) if (x.userData && x.userData.instId) return state.objects.find((o) => o.id === x.userData.instId) || null;
-    return null; // the nearest visible thing wins, so walls block picks
+    const k = WALL_OF_MAT[h.object.material && h.object.material.name];
+    return k ? { wall: k } : null; // the nearest visible thing wins, so walls block picks
   }
   return null;
 }
 function select(o, openTab = false) {
+  if (o && o.wall) {
+    selected = { wall: o.wall };
+    moveGizmo.detach(); turnGizmo.detach();
+    pieceBar.hidden = true;
+    selHelper.visible = true;
+    inspectorEl.scrollTop = 0;
+    return syncPanels();
+  }
   selected = o ? { id: o.id } : null;
   const node = o && instNodes.get(o.id);
   selHelper.visible = !!node;
@@ -1370,6 +1399,13 @@ function facingNormal(o) {
   return [Math.cos(a), Math.sin(a)];
 }
 function updateSelBox() {
+  if (selected && selected.wall) {
+    selBox.makeEmpty();
+    const mat = WALLS[selected.wall].mat;
+    scene.traverseVisible((m) => { if (m.isMesh && m.material && m.material.name === mat && !isGizmo(m)) selBox.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld)); });
+    selHelper.visible = !selBox.isEmpty();
+    return;
+  }
   const node = selected && instNodes.get(selected.id);
   if (!node) { selHelper.visible = false; return; }
   selBox.makeEmpty();
@@ -1521,7 +1557,7 @@ controls.addEventListener("start", () => {
 // Hold to compare with the room as it is today
 const cmp = document.getElementById("compare");
 const startCmp = (e) => { e.preventDefault(); if (!loaded) return; TODAY_STATE = TODAY_STATE || { ...state, ...fromPreset(PRESETS.today), style: "green" }; comparing = true; cmp.classList.add("on"); selHelper.visible = false; moveGizmo.detach(); turnGizmo.detach(); update(false); };
-const endCmp = () => { if (!comparing) return; comparing = false; cmp.classList.remove("on"); update(false); if (selected) { const o = state.objects.find((x) => x.id === selected.id); if (o) select(o); } };
+const endCmp = () => { if (!comparing) return; comparing = false; cmp.classList.remove("on"); update(false); if (selected) { const o = selected.wall ? selected : state.objects.find((x) => x.id === selected.id); if (o) select(o); } };
 cmp.addEventListener("pointerdown", startCmp);
 ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => cmp.addEventListener(ev, endCmp));
 cmp.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) startCmp(e); });

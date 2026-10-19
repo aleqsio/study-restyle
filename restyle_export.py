@@ -564,6 +564,7 @@ def drawer_run(prefix, y0, modules, mw, wall_art):
                 sphere(f"{prefix} {i} Leaf {k}", (kx0 + 0.22 + 0.10 * math.cos(ang), c + 0.10 * math.sin(ang),
                                                   KH + 0.12 - 0.05 * (k % 4)), 0.045, M["leaf"], scale=(1, 0.7, 0.3), rot=(0.4, 0.2, ang))
         if wall_art == "ledge":
+            item("prints on a ledge")  # wall art is its own piece, movable apart from the drawers
             box(f"{prefix} {i} Ledge", W - 0.08, W, a + 0.02, b_ - 0.02, 1.22, 1.24, M["oak"])
             lean = box(f"{prefix} {i} Print", -0.005, 0.005, -0.20, 0.20, 0.0, 0.50 - 0.06 * (i % 2), M["oak"])
             lean.location = (W - 0.04, c, 1.24)
@@ -571,10 +572,12 @@ def drawer_run(prefix, y0, modules, mw, wall_art):
             paper = box(f"{prefix} {i} Print Paper", -0.0065, -0.005, -0.17, 0.17, 0.03, 0.47 - 0.06 * (i % 2),
                         [M["p_mustard"], M["p_cream"], M["p_teal"]][i % 3])
             paper.parent = lean
+            item(None)
         if i == 2:
             for o in set(CURRENT["coll"].objects) - before:
                 o["module3"] = 1
     if wall_art == "print":
+        item("print")
         mid = y0 + modules * mw / 2
         framed_print(f"{prefix} Print", mid - 0.36, mid + 0.36, 1.20, 1.74, M["p_cream"],
                      ((mid - 0.12, 1.50, 0.13, M["p_mustard"]), (mid + 0.13, 1.40, 0.09, M["p_teal"]), (mid + 0.02, 1.58, 0.05, M["p_red"])))
@@ -597,7 +600,9 @@ bx0, bx1, by0, by1, BH = W - 0.61, W - 0.01, 0.25, 1.55, 0.75
 steel_frame("Bench", bx0, bx1, by0, (by0 + by1) / 2, BH)
 steel_frame("Bench B", bx0, bx1, (by0 + by1) / 2, by1, BH)
 box("Bench Top", bx0 - 0.01, bx1, by0, by1, BH - 0.04, BH, M["oak"], bevel=0.004)
+item("pegboard")
 box("Pegboard", W - 0.018, W - 0.003, by0 + 0.02, by1 - 0.02, 0.95, 1.75, M["pegboard"])
+item(None)
 # 3D printer (enclosed cube) at the window end
 box("Printer Body", bx0 + 0.12, bx1 - 0.06, by0 + 0.02, by0 + 0.44, BH, BH + 0.46, M["device"], bevel=0.01)
 box("Printer Door", bx0 + 0.115, bx0 + 0.12, by0 + 0.05, by0 + 0.41, BH + 0.04, BH + 0.42, M["glass"])
@@ -640,6 +645,7 @@ for r in range(4):
 for k, (a, mat) in enumerate(((by0 + 0.70, M["book2"]), (by1 - 0.40, M["p_cream"]))):
     box(f"Bench Bin {k}", bx0 + 0.06, bx1 - 0.06, a, a + 0.32, 0.135, 0.36, mat, bevel=0.01)
 # Pegboard: tools, wire spools, a filament shelf
+item("pegboard")
 box("Peg Shelf", W - 0.16, W - 0.003, by0 + 0.10, by0 + 0.60, 1.52, 1.535, M["steel"])
 for k, (y, mat) in enumerate(((by0 + 0.20, M["spool_a"]), (by0 + 0.45, M["spool_b"]))):
     rod(f"Filament Spool {k}", (W - 0.14, y, 1.635), (W - 0.07, y, 1.635), 0.10, mat, verts=32)
