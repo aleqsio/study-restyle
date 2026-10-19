@@ -114,7 +114,7 @@ h1 { font: 600 22px/1.1 var(--font-display); margin: 0; letter-spacing: .01em; }
 .colrow { display: grid; grid-template-columns: minmax(0, 1fr) 44px 64px; gap: 8px; align-items: center; padding: 3px 6px; }
 .colrow label { font: 500 13px/1.3 var(--font-body); }
 .wall-swatch { width: 56px; height: 56px; border-radius: 8px; border: 1px solid var(--line); flex: none; }
-.chip .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.15); }
+.chip .dot, .objrow .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(0,0,0,.15); }
 .colrow input[type="color"] { width: 44px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
 .colrow .price { font: 400 11.5px var(--font-mono); color: var(--muted); text-align: right; }
 .colrow .btn { padding: 6px 8px; }
@@ -466,6 +466,16 @@ const SINGLES = {
   "art:gallery": ["Gallery wall", "Wall decor", 300, 900],
   "art:clock": ["Sunburst clock", "Wall decor", 300, 900],
   "art:textile": ["Woven wall hanging", "Wall decor", 500, 1500],
+  "art:mcm/green gradient": ["Gradient in the wall green", "Paintings", 150, 450],
+  "art:mcm/mauve gradient": ["Gradient in the wardrobe mauve", "Paintings", 150, 450],
+  "art:mcm/green into mauve": ["Green into mauve gradient", "Paintings", 250, 700],
+  "art:mcm/sunset arches": ["Sunset arches", "Paintings", 150, 400],
+  "art:mcm/circles": ["Circles and a line", "Paintings", 120, 350],
+  "art:mcm/cut-out leaves": ["Cut-out leaves", "Paintings", 120, 350],
+  "art:mcm/layered hills": ["Layered hills", "Paintings", 200, 500],
+  "art:mcm/sun and horizon": ["Sun over the horizon", "Paintings", 120, 350],
+  "art:mcm/colour field": ["Colour field", "Paintings", 300, 900],
+  "art:mcm/boomerangs": ["Boomerang pattern", "Paintings", 80, 250],
   "wf:slats": ["Oak slat wall", "Wall decor", 1500, 3500],
   "wf:cork": ["Cork wall", "Wall decor", 300, 800],
   "between:pinboard": ["Cork pinboard", "Wall decor", 150, 400],
@@ -483,7 +493,7 @@ const SINGLES = {
   "x:baskets": ["Woven baskets", "Small things", 80, 250],
   "x:throw": ["Throw and cushions", "Small things", 200, 600],
 };
-const CATEGORIES = ["Seating", "Desks & tables", "Storage", "Lighting", "Plants", "Rugs", "Dividers", "Wall decor", "Small things"];
+const CATEGORIES = ["Seating", "Desks & tables", "Storage", "Lighting", "Plants", "Rugs", "Dividers", "Wall decor", "Paintings", "Small things"];
 const PROTO_IDS = [...Object.keys(FAMILIES), ...Object.keys(SINGLES)];
 const infoOf = (p) => (FAMILIES[p] ? { name: FAMILIES[p].name, cat: FAMILIES[p].cat, family: FAMILIES[p] } : { name: SINGLES[p][0], cat: SINGLES[p][1], lo: SINGLES[p][2], hi: SINGLES[p][3] });
 function fnv(key) {
@@ -826,6 +836,97 @@ function applyMaterials(overrides) {
   }
 }
 
+// Mid-century paintings, drawn here so the model stays small. The palette borrows
+// the room's own colours: the wall green and the wardrobe mauve.
+const PAL = { green: "#5f8f78", deep: "#3f5f50", sage: "#a3b39a", mauve: "#8a5459", plum: "#5a3439", blush: "#dcae9f",
+  mustard: "#d3a447", rust: "#b8674a", cream: "#efe6d2", teal: "#2f6f6a", ink: "#2b2724", walnut: "#6a4529" };
+function vgrad(c, w, h, stops) {
+  const g = c.createLinearGradient(0, 0, 0, h);
+  for (const [t, col] of stops) g.addColorStop(t, col);
+  c.fillStyle = g; c.fillRect(0, 0, w, h);
+}
+function disc(c, x, y, r, col, a0 = 0, a1 = Math.PI * 2) { c.fillStyle = col; c.beginPath(); c.moveTo(x, y); c.arc(x, y, r, a0, a1); c.fill(); }
+const ARTWORKS = {
+  greengrad: [50, 70, (c, w, h) => vgrad(c, w, h, [[0, PAL.cream], [0.45, PAL.sage], [1, PAL.deep]])],
+  mauvegrad: [50, 70, (c, w, h) => vgrad(c, w, h, [[0, "#f1d9c6"], [0.4, PAL.blush], [1, PAL.plum]])],
+  duo: [60, 90, (c, w, h) => vgrad(c, w, h, [[0, PAL.deep], [0.3, PAL.green], [0.55, "#b9a088"], [0.75, PAL.mauve], [1, PAL.plum]])],
+  arches: [50, 50, (c, w, h) => {
+    c.fillStyle = PAL.cream; c.fillRect(0, 0, w, h);
+    [PAL.rust, PAL.mustard, PAL.green, PAL.mauve, PAL.cream].forEach((col, i) => disc(c, w / 2, h * 0.86, w * (0.42 - i * 0.08), col, Math.PI, 0));
+    c.fillStyle = PAL.ink; c.fillRect(w * 0.08, h * 0.86, w * 0.84, h * 0.012);
+  }],
+  circles: [40, 50, (c, w, h) => {
+    c.fillStyle = PAL.cream; c.fillRect(0, 0, w, h);
+    disc(c, w * 0.42, h * 0.38, w * 0.3, PAL.green);
+    disc(c, w * 0.62, h * 0.66, w * 0.24, PAL.mauve, -Math.PI / 2, Math.PI / 2);
+    disc(c, w * 0.26, h * 0.74, w * 0.08, PAL.mustard);
+    c.fillStyle = PAL.ink; c.fillRect(w * 0.62, h * 0.12, w * 0.012, h * 0.76);
+  }],
+  leaves: [40, 40, (c, w, h) => {
+    c.fillStyle = PAL.cream; c.fillRect(0, 0, w, h);
+    [[0.32, 0.55, -0.5, PAL.green], [0.55, 0.45, 0.3, PAL.deep], [0.7, 0.66, 0.9, PAL.mustard], [0.42, 0.3, -1.1, PAL.teal], [0.6, 0.78, 0.2, PAL.mauve]]
+      .forEach(([x, y, a, col]) => { c.save(); c.translate(w * x, h * y); c.rotate(a); c.fillStyle = col; c.beginPath(); c.ellipse(0, 0, w * 0.2, w * 0.07, 0, 0, Math.PI * 2); c.fill(); c.restore(); });
+  }],
+  hills: [60, 40, (c, w, h) => {
+    vgrad(c, w, h, [[0, "#f3e3cc"], [0.5, PAL.blush]]);
+    disc(c, w * 0.7, h * 0.32, h * 0.13, PAL.mustard);
+    [[0.48, PAL.sage, 1.1], [0.6, PAL.green, 1.7], [0.72, PAL.deep, 0.8], [0.84, PAL.plum, 1.3]].forEach(([y0, col, f]) => {
+      c.fillStyle = col; c.beginPath(); c.moveTo(0, h);
+      for (let x = 0; x <= w; x += 4) c.lineTo(x, h * y0 + Math.sin(x / w * Math.PI * 2 * f + y0 * 9) * h * 0.06);
+      c.lineTo(w, h); c.fill();
+    });
+  }],
+  sun: [40, 40, (c, w, h) => {
+    c.fillStyle = PAL.cream; c.fillRect(0, 0, w, h);
+    disc(c, w / 2, h * 0.55, w * 0.3, PAL.mustard, Math.PI, 0);
+    [PAL.rust, PAL.mauve, PAL.green, PAL.deep].forEach((col, i) => { c.fillStyle = col; c.fillRect(0, h * (0.55 + i * 0.1), w, h * 0.1); });
+  }],
+  field: [40, 50, (c, w, h) => {
+    c.fillStyle = PAL.mauve; c.fillRect(0, 0, w, h);
+    c.filter = `blur(${w * 0.012}px)`;
+    c.fillStyle = PAL.green; c.fillRect(w * 0.1, h * 0.08, w * 0.8, h * 0.5);
+    c.fillStyle = PAL.rust; c.fillRect(w * 0.1, h * 0.64, w * 0.8, h * 0.27);
+    c.filter = "none";
+  }],
+  boomerang: [30, 30, (c, w, h) => {
+    c.fillStyle = PAL.cream; c.fillRect(0, 0, w, h);
+    const cols = [PAL.green, PAL.mauve, PAL.mustard, PAL.teal, PAL.rust];
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+      c.save(); c.translate(w * (0.14 + i * 0.24 + (j % 2) * 0.1), h * (0.14 + j * 0.24)); c.rotate((i * 3 + j) * 0.9);
+      c.strokeStyle = cols[(i + j * 2) % cols.length]; c.lineWidth = w * 0.035; c.lineCap = "round";
+      c.beginPath(); c.moveTo(-w * 0.06, -h * 0.03); c.quadraticCurveTo(0, h * 0.05, w * 0.06, -h * 0.03); c.stroke(); c.restore();
+    }
+  }],
+};
+function artworkTexture(key) {
+  const [cw, ch, draw] = ARTWORKS[key] || ARTWORKS.greengrad;
+  const k = 640 / Math.max(cw, ch), w = Math.round(cw * k), h = Math.round(ch * k);
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const c = cv.getContext("2d");
+  draw(c, w, h);
+  // a little paper grain
+  for (let i = 0; i < w * h / 40; i++) { c.fillStyle = Math.random() < 0.5 ? "rgba(0,0,0,.035)" : "rgba(255,255,255,.04)"; c.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5); }
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+// The canvas is a plain box from Blender: give its face 0..1 UVs (up is up, across runs along the wall)
+function paintCanvas(mesh, m) {
+  if (!m.map) { m.map = artworkTexture(m.name.slice(9)); m.color.set(0xffffff); }
+  const pos = mesh.geometry.attributes.position;
+  mesh.geometry.computeBoundingBox();
+  const b = mesh.geometry.boundingBox, size = b.getSize(new THREE.Vector3());
+  const across = size.x > size.z ? "x" : "z";
+  const uv = new Float32Array(pos.count * 2);
+  for (let i = 0; i < pos.count; i++) {
+    uv[i * 2] = (pos[`get${across.toUpperCase()}`](i) - b.min[across]) / size[across];
+    uv[i * 2 + 1] = (pos.getY(i) - b.min.y) / size.y;
+  }
+  mesh.geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+}
+
 // Lights driven by anchors in the model
 function makeLight(kind) {
   const shadowed = (l, y) => { l.castShadow = true; l.shadow.mapSize.set(1024, 1024); l.shadow.bias = -0.002; l.position.y = y; return l; };
@@ -877,6 +978,7 @@ loadModel().then((gltf) => {
       o.receiveShadow = true;
       const m = o.material;
       if (!m) return;
+      if (m.name.startsWith("Painting ")) paintCanvas(o, m);
       if (!materials.has(m.name)) materials.set(m.name, { mat: m, orig: { color: m.color.clone(), map: m.map, roughness: m.roughness, metalness: m.metalness } });
       if (m.name === "Glass") { m.transparent = true; m.opacity = 0.18; m.transmission = 0; m.depthWrite = false; o.castShadow = false; }
       if (m.name === "Window Film" || m.name === "Reeded Glass") { m.transparent = true; m.opacity = m.name === "Reeded Glass" ? 0.5 : 0.6; m.depthWrite = false; o.castShadow = false; }
@@ -1155,11 +1257,19 @@ function renderRoomSettings() {
         <input type="color" id="col-${k}" data-color="${k}" value="${(state.colors[k] || wallHex(WALLS[k].mat)).toLowerCase()}">
         ${state.colors[k] ? `<button class="btn" data-uncolor="${k}">Reset</button>` : `<span class="price">as styled</span>`}</div>`).join("")}</div>
       <p class="note">Each hand-picked colour adds ${fmt(WALL_PAINT[0])}–${fmt(WALL_PAINT[1])} zł for paint.</p></section>
-    <section class="block"><div class="block-head"><h2>Ceiling light</h2></div>${chipRow("light", Object.entries(LIGHTS), state.light)}
-      <p class="row-label">Light colour<span>smart bulb</span></p>${lampBlock(state.lamp, "#ffd2a0", "ceiling")}</section>
+    <section class="block"><div class="block-head"><h2>Ceiling light</h2><span>click it in the room to edit</span></div>
+      <button class="objrow" data-act="ceiling"><i class="dot" style="width:26px;height:26px;margin:0 auto;background:${state.lamp || "#ffd2a0"}"></i><span class="name">${esc(LIGHTS[state.light].name)}</span><span class="price">${LIGHTS[state.light].hi ? range(LIGHTS[state.light].lo, LIGHTS[state.light].hi) : "owned"}</span></button></section>
     <section class="block"><div class="block-head"><h2>Window, radiator, door</h2><span>${[...state.room].length} on</span></div>
       <div class="xlist">${Object.entries(ROOM_ADDONS).map(([k, v]) => `<label class="xrow"><input type="checkbox" data-room="${k}" ${state.room.has(k) ? "checked" : ""}>
         <span class="name">${esc(v.name)}</span><span class="price">${fmt(v.lo)}–${fmt(v.hi)}</span></label>`).join("")}</div></section>`;
+}
+function renderCeilingSettings() {
+  const L = LIGHTS[state.light];
+  inspectorEl.innerHTML = `<div class="insp-head"><button class="btn" data-act="back">← Room settings</button><span>Ceiling light</span></div>
+    <div class="obj-head"><div class="wall-swatch" style="background:${state.lamp || "#ffd2a0"}"></div><div><h2>${esc(L.name)}</h2>
+      <p>Lighting · on the ceiling</p><p><strong>${L.hi ? range(L.lo, L.hi) : "already yours"}</strong></p></div></div>
+    <section class="block"><p class="row-label">Fixture</p>${chipRow("light", Object.entries(LIGHTS), state.light)}</section>
+    <section class="block"><p class="row-label">Light colour<span>smart bulb</span></p>${lampBlock(state.lamp, "#ffd2a0", "ceiling")}</section>`;
 }
 function renderWallSettings(k) {
   const v = state.colors[k] || wallHex(WALLS[k].mat);
@@ -1211,7 +1321,8 @@ function syncPanels() {
   document.getElementById("total").textContent = range(lo, hi);
   document.querySelectorAll("#scenes button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.scene === state.scene)));
   const o = selected && state.objects.find((x) => x.id === selected.id);
-  if (o) renderObjectSettings(o); else if (selected && selected.wall) renderWallSettings(selected.wall); else renderRoomSettings();
+  if (o) renderObjectSettings(o); else if (selected && selected.wall) renderWallSettings(selected.wall);
+  else if (selected && selected.ceiling) renderCeilingSettings(); else renderRoomSettings();
   renderObjectList();
 }
 // One delegated handler for both panels
@@ -1237,6 +1348,7 @@ function onPanelClick(e) {
   }
   if (d.setcolor && selected && selected.wall) { state.colors[selected.wall] = d.setcolor; return update(); }
   if (d.act === "back") return select(null);
+  if (d.act === "ceiling") return select({ ceiling: true });
   if (!o) return;
   for (const [k, v] of Object.entries(d)) {
     if (!k.startsWith("opt")) continue;
@@ -1412,14 +1524,20 @@ function pick(e) {
   for (const h of raycaster.intersectObjects(scene.children, true)) {
     if (!h.object.isMesh || !visibleChain(h.object) || isGizmo(h.object)) continue;
     for (let x = h.object; x; x = x.parent) if (x.userData && x.userData.instId) return state.objects.find((o) => o.id === x.userData.instId) || null;
+    if (isCeilingFixture(h.object)) return { ceiling: true };
     const k = WALL_OF_MAT[h.object.material && h.object.material.name];
     return k ? { wall: k } : null; // the nearest visible thing wins, so walls block picks
   }
   return null;
 }
+const isLightTag = (u) => String(u.opt || "").startsWith("light:") || u.slotBase === "light";
+function isCeilingFixture(n) {
+  for (let x = n; x; x = x.parent) if (x.userData && isLightTag(x.userData)) return true;
+  return false;
+}
 function select(o, openTab = false) {
-  if (o && o.wall) {
-    selected = { wall: o.wall };
+  if (o && (o.wall || o.ceiling)) {
+    selected = o.wall ? { wall: o.wall } : { ceiling: true };
     moveGizmo.detach(); turnGizmo.detach();
     pieceBar.hidden = true;
     selHelper.visible = true;
@@ -1450,10 +1568,12 @@ function facingNormal(o) {
   return [Math.cos(a), Math.sin(a)];
 }
 function updateSelBox() {
-  if (selected && selected.wall) {
+  if (selected && (selected.wall || selected.ceiling)) {
     selBox.makeEmpty();
-    const mat = WALLS[selected.wall].mat;
-    scene.traverseVisible((m) => { if (m.isMesh && m.material && m.material.name === mat && !isGizmo(m)) selBox.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld)); });
+    const mat = selected.wall && WALLS[selected.wall].mat;
+    const add = (m) => { if (m.isMesh && !isGizmo(m)) selBox.union(m.geometry.boundingBox.clone().applyMatrix4(m.matrixWorld)); };
+    if (mat) scene.traverseVisible((m) => { if (m.material && m.material.name === mat) add(m); });
+    else for (const n of roomTagged) if (isLightTag(n.userData) && visibleChain(n)) n.traverseVisible(add);
     selHelper.visible = !selBox.isEmpty();
     return;
   }
@@ -1622,7 +1742,7 @@ controls.addEventListener("start", () => {
 // Hold to compare with the room as it is today
 const cmp = document.getElementById("compare");
 const startCmp = (e) => { e.preventDefault(); if (!loaded) return; TODAY_STATE = TODAY_STATE || { ...state, ...fromPreset(PRESETS.today), style: "green" }; comparing = true; cmp.classList.add("on"); selHelper.visible = false; moveGizmo.detach(); turnGizmo.detach(); update(false); };
-const endCmp = () => { if (!comparing) return; comparing = false; cmp.classList.remove("on"); update(false); if (selected) { const o = selected.wall ? selected : state.objects.find((x) => x.id === selected.id); if (o) select(o); } };
+const endCmp = () => { if (!comparing) return; comparing = false; cmp.classList.remove("on"); update(false); if (selected) { const o = selected.wall || selected.ceiling ? selected : state.objects.find((x) => x.id === selected.id); if (o) select(o); } };
 cmp.addEventListener("pointerdown", startCmp);
 ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => cmp.addEventListener(ev, endCmp));
 cmp.addEventListener("keydown", (e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) startCmp(e); });

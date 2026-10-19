@@ -323,6 +323,24 @@ box("Textile Panel", W - 0.014, W - 0.006, 2.12, 2.88, 1.15, 2.05, textile_ochre
 for k, (z0, z1, m) in enumerate(((1.25, 1.38, M["rug_rust"]), (1.48, 1.52, M["rug_cream"]), (1.62, 1.80, M["book2"]), (1.88, 1.92, M["rug_cream"]))):
     box(f"Textile Band {k}", W - 0.016, W - 0.014, 2.12, 2.88, z0, z1, m)
 
+use_option("art:mcm")  # mid-century paintings; the viewer paints each canvas from its material name
+for key, it, yc, zc, w, h, fr in (
+        ("greengrad", "green gradient", 0.45, 1.55, 0.50, 0.70, "walnut"),
+        ("mauvegrad", "mauve gradient", 1.05, 1.55, 0.50, 0.70, "walnut"),
+        ("duo", "green into mauve", 1.75, 1.55, 0.60, 0.90, "oak"),
+        ("arches", "sunset arches", 2.45, 1.55, 0.50, 0.50, "walnut"),
+        ("circles", "circles", 3.00, 1.55, 0.40, 0.50, "black"),
+        ("leaves", "cut-out leaves", 0.60, 2.15, 0.40, 0.40, "oak"),
+        ("hills", "layered hills", 1.30, 2.15, 0.60, 0.40, "walnut"),
+        ("sun", "sun and horizon", 2.00, 2.15, 0.40, 0.40, "oak"),
+        ("field", "colour field", 2.60, 2.15, 0.40, 0.50, "walnut"),
+        ("boomerang", "boomerangs", 3.05, 2.15, 0.30, 0.30, "black")):
+    item(it)
+    b = 0.025
+    box(f"Painting {key} Frame", W - 0.03, W, yc - w / 2 - b, yc + w / 2 + b, zc - h / 2 - b, zc + h / 2 + b, M[fr])
+    box(f"Painting {key} Canvas", W - 0.032, W - 0.03, yc - w / 2, yc + w / 2, zc - h / 2, zc + h / 2, mat(f"Painting {key}", "#ffffff", rough=0.9))
+item(None)
+
 # ================================================================ wall features
 use_option("wf:slats")  # 5 oak slats behind the desk (moves with the desk wall)
 box("Wallfeat Slat Felt", 0.0, 0.004, 0.0, 1.64, 0.0, H, mat("Slat Felt", "#1e1e1e", rough=1.0))
