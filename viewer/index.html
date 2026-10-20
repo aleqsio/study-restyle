@@ -348,7 +348,6 @@ const ROOM_ADDONS = {
   nightlight: { name: "Motion night light", lo: 50, hi: 150 },
   uplight: { name: "Uplight on the shaft", lo: 100, hi: 300 },
   excluder: { name: "Draught excluder", lo: 50, hi: 150 },
-  hooks: { name: "Hook rail on the door", lo: 80, hi: 250 },
   abovedoor: { name: "Cabinet above the door", lo: 800, hi: 2000 },
   projector: { name: "Projector and pull-down screen", lo: 1500, hi: 4000 },
   darkfloor: { name: "Re-oil the floor darker", lo: 3000, hi: 6000, mats: { "Oak Floor": wood("#7a4f2a", "#4a2e14", { planks: 22, streak: 900, size: 2048 }) } },
@@ -384,6 +383,14 @@ const FAMILIES = {
     options: [{ key: "v", label: "Style", tag: "shelf", values: { string: ["String rails", 1200, 3000], planks: ["Floating planks", 300, 800], rails: ["Aluminium tracks", 1500, 6000], cubes: ["Wall boxes", 400, 1200], pegboard: ["Wood pegboard", 200, 600] } }],
     addons: { growlight: ["Grow light under the shelf", 100, 300] },
   },
+  // IKEA HYLLIS runs (60 × 27 × 74 cm each, metal shelves) under one top in the desk's woods
+  ...Object.fromEntries([1, 2, 3].map((n) => [`piece:hyllis${n}`, {
+    name: `HYLLIS ×${n} with a wooden top, ${n * 60} cm`, cat: "Storage",
+    options: [{ key: "wood", label: "Top", tag: "hyllis", values: {
+      oak: ["Light oak, like the oak desk", 100 + 150 * n, 250 + 300 * n],
+      walnut: ["Walnut, like the walnut desk", 150 + 250 * n, 350 + 500 * n],
+      black: ["Black ash, like your desk today", 100 + 150 * n, 250 + 350 * n] } }],
+  }])),
   rug: {
     name: "Rug", cat: "Rugs",
     options: [{ key: "v", label: "Rug", tag: "rug", values: { geo: ["Geometric wool 160 × 230", 600, 1200], jute: ["Round jute", 300, 800], kilim: ["Kilim", 800, 3000] } }],
@@ -466,9 +473,7 @@ const SINGLES = {
   "art:gallery": ["Gallery wall", "Wall decor", 300, 900],
   "art:clock": ["Sunburst clock", "Wall decor", 300, 900],
   "art:textile": ["Woven wall hanging", "Wall decor", 500, 1500],
-  "piece:hyllis1": ["HYLLIS ×1 with oak top, 60 cm", "Storage", 250, 600],
-  "piece:hyllis2": ["HYLLIS ×2 with oak top, 120 cm", "Storage", 450, 1000],
-  "piece:hyllis3": ["HYLLIS ×3 with oak top, 180 cm", "Storage", 650, 1400],
+  "x:hooks": ["Door hook rail with a coat", "Storage", 80, 250],
   "piece:globelamp": ["Opal globe table lamp", "Lighting", 200, 700],
   "piece:wire/wire shelf": ["Chrome wire cube shelf", "Storage", 1500, 9000],
   "piece:wire/donut lamp": ["Orange glass donut lamp", "Lighting", 300, 1200],
@@ -639,6 +644,8 @@ function fromPreset(P, layout = "A") {
 const STYLE_KEYS = Object.keys(STYLES), SCENE_KEYS = ["evening", "everyday", "focus"];
 const VIEW_KEYS = ["doll", "photo", "door", "opposite", "seated", "standing", "top"];
 const PAINT_KEYS = Object.keys(PAINT), FINISH_KEYS = Object.keys(FINISH), LIGHT_KEYS = Object.keys(LIGHTS), ROOM_KEYS = Object.keys(ROOM_ADDONS);
+// Links keep the room add-ons' old bit order; the door hook rail used to be one and is now a piece
+const ROOM_LINK_KEYS = [...ROOM_KEYS.slice(0, 8), "hooks", ...ROOM_KEYS.slice(8)];
 const n36 = (v) => (v < 0 ? "_" : "") + Math.abs(Math.round(v)).toString(36);
 const p36 = (s) => (s[0] === "_" ? -1 : 1) * parseInt(s.replace("_", "") || "0", 36);
 const bits36 = (keys, set) => { let b = 0n; keys.forEach((k, i) => { if (set.has(k)) b |= 1n << BigInt(i); }); return b.toString(36); };
@@ -646,7 +653,7 @@ const unbits36 = (keys, str) => { let b = 0n; for (const d of str || "") b = b *
 function encode(s) {
   const c = (keys, v) => Math.max(0, keys.indexOf(v)).toString(36);
   let t = "r2" + c(STYLE_KEYS, s.style) + c(SCENE_KEYS, s.scene) + c(VIEW_KEYS, s.view) + c(PAINT_KEYS, s.paint) + c(FINISH_KEYS, s.finish) + c(LIGHT_KEYS, s.light);
-  t += "-" + bits36(ROOM_KEYS, s.room);
+  t += "-" + bits36(ROOM_LINK_KEYS, s.room);
   const cols = WALL_KEYS.filter((k) => s.colors && s.colors[k]);
   if (cols.length) t += "~cc" + cols.map((k) => `.${WALL_KEYS.indexOf(k).toString(36)}${s.colors[k].slice(1)}`).join("");
   if (s.lamp) t += "~cl." + s.lamp.slice(1);
@@ -663,7 +670,8 @@ function decode(tok) {
   if (!m) return null;
   const at = (i, keys) => keys[parseInt(m[1][i], 36)];
   const s = { style: at(0, STYLE_KEYS) || "green", scene: at(1, SCENE_KEYS) || "everyday", view: at(2, VIEW_KEYS) || "doll",
-    paint: at(3, PAINT_KEYS) || "today", finish: at(4, FINISH_KEYS) || "none", light: at(5, LIGHT_KEYS) || "today", room: unbits36(ROOM_KEYS, m[2]), colors: {}, lamp: null, objects: [] };
+    paint: at(3, PAINT_KEYS) || "today", finish: at(4, FINISH_KEYS) || "none", light: at(5, LIGHT_KEYS) || "today", room: unbits36(ROOM_LINK_KEYS, m[2]), colors: {}, lamp: null, objects: [] };
+  if (s.room.delete("hooks")) s.objects.push({ ...inst("x:hooks"), x: 1.18, y: D }); // where it hung as a room add-on
   for (const e of objs) {
     if (e.startsWith("cc.")) {
       for (const c of e.split(".").slice(1)) { const k = WALL_KEYS[parseInt(c[0], 36)]; if (k && /^[0-9a-f]{6}$/.test(c.slice(1))) s.colors[k] = "#" + c.slice(1); }

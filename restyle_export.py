@@ -750,7 +750,7 @@ for t in ("rug:jute", "rug:kilim"):
         o.matrix_world = mw
 
 ROOM_TAGS = {"wf:rail", "x:pelmet", "x:sill", "x:film", "x:colrad", "x:trv", "x:nightlight", "x:uplight",
-             "x:excluder", "x:hooks", "x:abovedoor", "x:projector"}
+             "x:excluder", "x:abovedoor", "x:projector"}
 OPP_PIVOTS = {"opp:console": (W - 0.235, 0.95), "opp:long": (W - 0.235, 1.025), "opp:bench": (W - 0.31, 0.90),
               **{"opp:" + k: v for k, v in OPP_GROUPS.items()}}
 for coll in list(bpy.data.collections):

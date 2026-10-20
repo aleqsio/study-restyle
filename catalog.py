@@ -403,26 +403,31 @@ item("chrome vase")
 cyl("Chrome Vase", 2.10, D - 0.17, levels[3] - 0.002, levels[3] + 0.29, 0.055, chrome, verts=24)
 item(None)
 
-# IKEA HYLLIS (60x27x74 cm, galvanised steel, three shelves) with oak inserts and one oak top
-# running over 1, 2 or 3 units side by side along the wall opposite the desk
+# IKEA HYLLIS (60x27x74 cm, galvanised steel, three metal shelves) under one wooden top
+# running over 1, 2 or 3 units side by side along the wall opposite the desk. The top comes in
+# the desk's own woods; the viewer shows the one picked ("hyllis:<wood>"), the frame always.
 galv = mat("Galvanised Steel", "#b7bbbd", rough=0.35, metal=0.45)
 HW, HD, HH, HP = 0.60, 0.27, 0.74, 0.022  # unit width, depth, height, corner post
+HYLLIS_WOODS = {"oak": M["oak"], "walnut": M["walnut"], "black": bpy.data.materials["Desk Black Ash"]}
 for n in (1, 2, 3):
     use_option(f"piece:hyllis{n}")
     hx1 = W - 0.01
     hx0 = hx1 - HD
     run = n * HW
     hy0 = 1.05 - run / 2
+    frame = []
     for u in range(n):
         uy0, uy1 = hy0 + u * HW, hy0 + (u + 1) * HW
         for px in (hx0, hx1 - HP):
             for py in (uy0, uy1 - HP):
-                box(f"Hyllis {n} Post {u}", px, px + HP, py, py + HP, 0, HH, galv)
+                frame.append(box(f"Hyllis {n} Post {u}", px, px + HP, py, py + HP, 0, HH, galv))
         for z in (0.07, 0.40, HH - 0.02):
-            box(f"Hyllis {n} Shelf {u}", hx0, hx1, uy0 + 0.002, uy1 - 0.002, z, z + 0.02, galv)
-            if z < 0.5:  # oak boards on the lower two shelves, as in the photo
-                box(f"Hyllis {n} Board {u}", hx0 + 0.008, hx1 - 0.008, uy0 + 0.01, uy1 - 0.01, z + 0.02, z + 0.032, M["oak"])
-    box(f"Hyllis {n} Top", hx0 - 0.02, hx1, hy0 - 0.01, hy0 + run + 0.01, HH, HH + 0.028, M["oak"], bevel=0.003)
+            frame.append(box(f"Hyllis {n} Shelf {u}", hx0, hx1, uy0 + 0.002, uy1 - 0.002, z, z + 0.02, galv))
+    for o in frame:
+        del o["opt"]  # always shown
+    for wood, m in HYLLIS_WOODS.items():
+        top = box(f"Hyllis {n} Top {wood}", hx0 - 0.02, hx1, hy0 - 0.01, hy0 + run + 0.01, HH, HH + 0.028, m, bevel=0.003)
+        top["opt"] = f"hyllis:{wood}"
 
 use_option("piece:globelamp")  # opal glass globe lamp, sits on a bottom shelf
 opal = mat("Globe Opal", "#f6eee2", rough=0.4, emit="#ffd9a6", emit_strength=1.2)
